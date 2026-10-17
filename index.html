@@ -198,6 +198,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
+      <p class="muted" id="verTxt">Versjon web ddc834c726</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -991,7 +992,7 @@ const api = () => (window.pywebview && window.pywebview.api) || (IS_WEB ? webApi
 const GLM_SVC = '02a6c0d0-0451-4000-b000-fb3210111989', GLM_CHR = '02a6c0d1-0451-4000-b000-fb3210111989';
 const CMD_MEASURE = new Uint8Array([0xC0,0x56,0x01,0x00,0x1E]), CMD_SYNC = new Uint8Array([0xC0,0x55,0x02,0x01,0x00,0x1A]);
 const hexOf = u8 => Array.from(u8, b => b.toString(16).padStart(2,'0')).join(' ');
-const wb = {dev:null, chr:null, laser:false, last:[null,0], wake:null};
+const wb = {dev:null, chr:null, laser:false, last:[null,0], wake:null, connecting:false};
 const emit = (k,p) => { if(window.onGlm) window.onGlm(k,p); };
 async function wbWrite(data){ const c = wb.chr; if(!c) throw new Error('Måleren er ikke klar');
   if(c.properties.write) await c.writeValueWithResponse(data); else await c.writeValueWithoutResponse(data); }
@@ -1006,34 +1007,61 @@ async function wakeOn(){ try{ if(navigator.wakeLock && !wb.wake){ wb.wake = awai
 document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible' && wb.chr) wakeOn(); });
 const webApi = {
   async glm_connect(_addr, sync){
+    let stage = 'velg';
     try{
+      if(/OPR\/|Opera/.test(navigator.userAgent)) throw new Error('Opera kan ikke koble til Bluetooth-utstyr. Åpne appen i Chrome.');
       if(!navigator.bluetooth) throw new Error('Denne nettleseren støtter ikke Bluetooth. Bruk Chrome på Android eller PC.');
       emit('status', {state:'searching', text:'Velg måleren i listen. Navnet inneholder vanligvis GLM.'});
       // alle enheter vises: navnet på måleren kan være for eksempel «Bosch GLM…», som et prefiks-filter ikke fanger
       const dev = await navigator.bluetooth.requestDevice({acceptAllDevices:true, optionalServices:[GLM_SVC]});
-      emit('status', {state:'connecting', text:'Kobler til ' + (dev.name || 'GLM') + ' …'});
-      dev.addEventListener('gattserverdisconnected', () => { wb.chr = null; wb.laser = false;
-        if(wb.wake){ wb.wake.release().catch(() => {}); wb.wake = null; }
-        emit('status', {state:'disconnected', text:'Forbindelsen til måleren ble brutt'}); });
-      const srv = await dev.gatt.connect(), svc = await srv.getPrimaryService(GLM_SVC);
+      emit('raw', {dir:'info', hex:'valgt: ' + (dev.name || '(uten navn)') + ' ' + dev.id});
+      if(!dev._glmListen){ dev._glmListen = true;
+        dev.addEventListener('gattserverdisconnected', () => { if(wb.connecting) return; wb.chr = null; wb.laser = false;
+          if(wb.wake){ wb.wake.release().catch(() => {}); wb.wake = null; }
+          emit('status', {state:'disconnected', text:'Forbindelsen til måleren ble brutt'}); }); }
+      // Android trenger ofte litt tid på å finne tjenestene etter tilkobling, så det prøves inntil tre ganger
+      let svc = null, last = null; wb.connecting = true;
+      for(let k = 1; k <= 3 && !svc; k++){
+        try{
+          stage = 'koble'; emit('status', {state:'connecting', text:'Kobler til ' + (dev.name || 'GLM') + ' (forsøk ' + k + ') …'});
+          const srv = await dev.gatt.connect(); await new Promise(r => setTimeout(r, 600));
+          stage = 'tjeneste'; svc = await srv.getPrimaryService(GLM_SVC);
+        }catch(e){ last = e; emit('raw', {dir:'feil', hex:'forsøk ' + k + ' (' + stage + '): ' + e.name + ': ' + e.message});
+          try{ dev.gatt.disconnect(); }catch(_){} await new Promise(r => setTimeout(r, 1000)); }
+      }
+      wb.connecting = false;
+      if(!svc) throw last;
+      stage = 'kanal';
       let chr; try{ chr = await svc.getCharacteristic(GLM_CHR); }
       catch(e){ const all = await svc.getCharacteristics();
+        all.forEach(c => emit('raw', {dir:'info', hex:'kanal ' + c.uuid + ' ' + Object.keys(Object.getPrototypeOf(c.properties)).filter(n => c.properties[n] === true).join(',')}));
         chr = all.find(c => (c.properties.notify || c.properties.indicate) && (c.properties.write || c.properties.writeWithoutResponse));
         if(!chr) throw new Error('Fant ingen kanal for målinger på måleren'); }
       emit('raw', {dir:'info', hex:'bruker ' + chr.uuid});
-      chr.addEventListener('characteristicvaluechanged', wbNotify); await chr.startNotifications();
+      stage = 'varsler'; chr.addEventListener('characteristicvaluechanged', wbNotify); await chr.startNotifications();
       wb.dev = dev; wb.chr = chr; wb.laser = false;
       if(sync){ try{ await wbWrite(CMD_SYNC); emit('raw', {dir:'ut', hex:hexOf(CMD_SYNC)}); }
         catch(e){ emit('raw', {dir:'feil', hex:'synk-kommando feilet: ' + e.message}); } }
       emit('status', {state:'connected', text:'Tilkoblet ' + (dev.name || 'GLM')}); wakeOn();
       return {ok:true, name:dev.name};
     }catch(e){
-      const em = (e && e.message) || String(e); emit('raw', {dir:'feil', hex:((e && e.name) || 'Feil') + ': ' + em});
+      wb.connecting = false;
+      const em = (e && e.message) || String(e), en = (e && e.name) || 'Feil';
+      let avail = null; try{ if(navigator.bluetooth && navigator.bluetooth.getAvailability) avail = await navigator.bluetooth.getAvailability(); }catch(_){}
+      emit('raw', {dir:'feil', hex:'steg ' + stage + ' · ' + en + ': ' + em + ' · Bluetooth tilgjengelig: ' + avail + ' · ' + navigator.userAgent});
       let msg = em;
-      if(e && e.name==='NotFoundError') msg = /adapter|unavailable|not available/i.test(em) ? 'Bluetooth er slått av på telefonen.'
-        : 'Ingen måler valgt. Står den ikke i listen, slå på Bluetooth i måleren og koble den fra PC-en og MeasureOn-appen.';
-      else if(e && e.name==='SecurityError') msg = 'Chrome har ikke lov til å bruke Bluetooth. Gi Chrome tilgang til «Enheter i nærheten» i telefonens innstillinger.';
-      else if(/GATT|connect/i.test(em)) msg = 'Fikk ikke koblet til måleren. Prøv igjen, og hold telefonen nær måleren.';
+      if(stage==='velg'){
+        if(en==='NotFoundError'){
+          if(avail===false) msg = 'Chrome får ikke bruke Bluetooth. Slå på Bluetooth på telefonen, og sjekk at Bluetooth er tillatt for denne siden i Chrome.';
+          else if(/cancel/i.test(em)) msg = 'Ingen måler valgt. Står den ikke i listen, slå på Bluetooth i måleren og koble den fra PC-en og MeasureOn-appen.';
+          else msg = 'Chrome åpnet ikke listen over enheter.';
+        } else if(en==='SecurityError') msg = 'Chrome har ikke lov til å bruke Bluetooth. Gi Chrome tilgang til «Enheter i nærheten» i telefonens innstillinger.';
+      }
+      else if(stage==='koble') msg = 'Fikk ikke kontakt med måleren. Sjekk at den er på, at den ikke er koblet til PC-en eller MeasureOn, og hold telefonen nær.';
+      else if(stage==='tjeneste') msg = en==='NotFoundError' ? 'Enheten du valgte, har ikke måletjenesten til GLM. Valgte du riktig enhet i listen?' : 'Koblet til, men fant ikke måletjenesten.';
+      else if(stage==='kanal') msg = 'Fant ikke målekanalen på måleren.';
+      else if(stage==='varsler') msg = 'Koblet til, men måleren vil ikke sende målinger.';
+      msg += ' [' + stage + ' · ' + en + ': ' + em + ']';
       emit('status', {state:'disconnected', text:msg}); return {ok:false, error:msg};
     }
   },
