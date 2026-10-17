@@ -67,7 +67,7 @@ input[type=range]{padding:0;border:0;background:transparent}
 .muted{color:var(--muted);font-size:13px;line-height:1.5;margin:0}
 .calib{border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px}
 textarea{min-height:90px;font-family:var(--f-num);font-size:11px;resize:vertical}
-.toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:7px 12px;border-radius:6px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .2s}
+.toast{position:fixed;z-index:30;top:12px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:7px 12px;border-radius:6px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .2s}
 .toast.on{opacity:1}
 @media (prefers-reduced-motion: reduce){.toast{transition:none}}
 /* svg */
@@ -105,6 +105,17 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
 .ub{min-width:44px;justify-content:center;font-family:var(--f-num)}
 .gridl{stroke:var(--line);stroke-width:.5}
 .scan{filter:var(--scan-filter)}
+/* areal-side */
+.sheet{position:fixed;inset:0;z-index:20;background:var(--paper);display:flex;flex-direction:column}
+.sheethead{display:flex;align-items:center;gap:8px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);background:var(--sheet)}
+.sheethead h2{font:600 22px var(--f-head);margin:0 auto 0 0}
+.sheetbody{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;max-width:760px;width:100%;box-sizing:border-box;margin:0 auto}
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.card.tgtc{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.card h2{font:600 12px var(--f-ui);text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0}
+.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;font-size:14px}
+.kv span:nth-child(even){font-family:var(--f-num);font-variant-numeric:tabular-nums;text-align:right}
+.kv .tot{font-weight:600}
 /* mål rom */
 .draftf{fill:none;stroke:var(--accent);stroke-linecap:round;stroke-linejoin:round}
 .draftact{stroke:var(--sel)}
@@ -149,6 +160,9 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <button class="ub" data-u="m" aria-pressed="false">m</button><button class="ub" data-u="cm" aria-pressed="true">cm</button><button class="ub" data-u="mm" aria-pressed="false">mm</button>
   </div>
   <div class="grp">
+    <button id="bArea" title="Areal og maling"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg>Areal</button>
+  </div>
+  <div class="grp">
     <button id="bUndo" title="Angre (Ctrl+Z)" aria-label="Angre"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg></button>
     <button id="bRedo" title="Gjør om (Ctrl+Y)" aria-label="Gjør om"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/></svg></button>
   </div>
@@ -158,6 +172,10 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <button id="bFit">Tilpass</button>
   </div>
 </header>
+<div class="sheet" id="areaSheet" hidden role="dialog" aria-label="Areal og maling">
+  <div class="sheethead"><h2>Areal og maling</h2><button id="areaClose">Lukk</button></div>
+  <div class="sheetbody" id="areaBody"></div>
+</div>
 <div class="main">
   <div class="stage" id="stage">
     <svg id="svg" xmlns="http://www.w3.org/2000/svg" aria-label="Plantegning"><g id="gridL"></g><g id="world"></g></svg>
@@ -198,7 +216,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web 146e631a51</p>
+      <p class="muted" id="verTxt">Versjon web c9ea4a10a7</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -239,7 +257,7 @@ let measure = null; // {x1,y1,x2,y2}
 let showDims = true;
 
 function load(){
-  try{ const raw = localStorage.getItem(KEY); if(raw){ const d = JSON.parse(raw); if(d && d.walls){ S = d; S.dims = S.dims || []; uid = d.uid || 1000; S.items.forEach(i=>{ if(i.x===592 && i.rot===90 && i.w===24){ const t=i.w; i.w=i.h; i.h=t; } else if(i.x===592 && i.rot===0 && i.w===24 && (i.kind==='kum'||i.kind==='komfyr')){ const t=i.w; i.w=i.h; i.h=t; i.rot=90; } }); return; } } }catch(e){}
+  try{ const raw = localStorage.getItem(KEY); if(raw){ const d = JSON.parse(raw); if(d && d.walls){ S = d; S.dims = S.dims || []; S.rooms = S.rooms || []; uid = d.uid || 1000; S.items.forEach(i=>{ if(i.x===592 && i.rot===90 && i.w===24){ const t=i.w; i.w=i.h; i.h=t; } else if(i.x===592 && i.rot===0 && i.w===24 && (i.kind==='kum'||i.kind==='komfyr')){ const t=i.w; i.w=i.h; i.h=t; i.rot=90; } }); return; } } }catch(e){}
   S = initial();
 }
 function save(){ S.uid = uid; try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
@@ -302,6 +320,7 @@ function render(){
   drawHover();
   syncChrome();
   renderProps();
+  if(!$('areaSheet').hidden) renderArea();
 }
 function drawGrid(){ // rutenett over hele det synlige området
   const g = $('gridL'); g.textContent = ''; g.setAttribute('transform', world.getAttribute('transform') || ''); if(!showGrid) return;
@@ -375,13 +394,13 @@ function drawDim(d){
   el('line',{x1:G.a[0],y1:G.a[1],x2:G.b[0],y2:G.b[1],class:cls},g);
   const t=3.5; [G.a,G.b].forEach(q=>el('line',{x1:q[0]-(G.ux+G.nx)*t,y1:q[1]-(G.uy+G.ny)*t,x2:q[0]+(G.ux+G.nx)*t,y2:q[1]+(G.uy+G.ny)*t,class:cls,'stroke-width':1.6},g));
   let ang=Math.atan2(G.uy,G.ux)*180/Math.PI, flip=false; if(ang>90){ang-=180;flip=true;} if(ang<=-90){ang+=180;flip=true;}
-  const up = flip?-1:1; const mx=(G.a[0]+G.b[0])/2 - G.nx*up*5, my=(G.a[1]+G.b[1])/2 - G.ny*up*5;
-  const fs=Math.min(14,Math.max(8,9*Math.min(1.6,k)));
-  el('text',{x:mx,y:my,'text-anchor':'middle','dominant-baseline':'central',class:'dimtx'+(isSel?' dimsel':''),'font-size':fs,transform:`rotate(${ang} ${mx} ${my})`},g).textContent=ufmt(G.L);
+  const up = flip?-1:1; const mx=(G.a[0]+G.b[0])/2 - G.nx*up*8*k, my=(G.a[1]+G.b[1])/2 - G.ny*up*8*k;
+  const fs=11*k;
+  el('text',{x:mx,y:my,'text-anchor':'middle','dominant-baseline':'central',class:'dimtx'+(isSel?' dimsel':''),style:'font-size:'+fs+'px',transform:`rotate(${ang} ${mx} ${my})`},g).textContent=ufmt(G.L);
   el('line',{x1:G.a[0],y1:G.a[1],x2:G.b[0],y2:G.b[1],stroke:'transparent','stroke-width':14*k},g);
 }
 function drawLabel(l){
-  el('text',{x:l.x,y:l.y,'text-anchor':'middle','dominant-baseline':'middle',class:'lbl','data-t':'label','data-id':l.id},world).textContent = l.text;
+  el('text',{x:l.x,y:l.y,'text-anchor':'middle','dominant-baseline':'middle',class:'lbl','data-t':'label','data-id':l.id,style:'font-size:'+(13/view.k)+'px'},world).textContent = l.text;
 }
 function drawSelection(){
   if(!sel) return; const o = find(byType(sel.type), sel.id); if(!o) return;
@@ -406,7 +425,7 @@ function drawSelection(){
   } else if(sel.type==='dim'){
     [[sel.id,1],[sel.id,2]].forEach(([id,e])=>{ const G=dimGeom(o); const q=e===1?G.a:G.b; el('circle',{cx:q[0],cy:q[1],r:6/view.k,class:'handle','stroke-width':2/view.k,'data-t':'dend','data-id':id,'data-e':e},world); });
   } else if(sel.type==='label'){
-    const len = o.text.length*6.5+10; el('rect',{x:o.x-len/2,y:o.y-10,width:len,height:20,class:'selbox','stroke-width':1.5/view.k},world);
+    const kk=1/view.k, len = (o.text.length*7.5+12)*kk; el('rect',{x:o.x-len/2,y:o.y-11*kk,width:len,height:22*kk,class:'selbox','stroke-width':1.5/view.k},world);
   }
 }
 function drawMeasure(){
@@ -426,8 +445,8 @@ function measureSnap(x,y){ // endepunkt → veggflate → rutenett
 }
 function dimText(x,y,txt,g){
   let ang = 0; if(g){ ang = Math.atan2(g.uy,g.ux)*180/Math.PI; if(ang>90) ang-=180; if(ang<-90) ang+=180; }
-  const s = Math.min(1.6, Math.max(.8, 1/view.k));
-  el('text',{x,y,class:'dim','text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${ang} ${x} ${y})`,'font-size':9*s},world).textContent = txt;
+  const s = 1/view.k;
+  el('text',{x,y,class:'dim','text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${ang} ${x} ${y})`,style:'font-size:'+(10*s)+'px'},world).textContent = txt;
 }
 
 // ---------- properties panel ----------
@@ -472,15 +491,17 @@ function renderProps(){
     h(`<p class="sel-title">${OPT[o.type]}</p>
       <div class="row"><label for="pType">Type</label><select id="pType">${Object.entries(OPT).map(([k,v])=>`<option value="${k}"${k===o.type?' selected':''}>${v}</option>`).join('')}</select></div>
       <div class="row"><label for="pW">Bredde (${unit})</label><input id="pW" type="number" step="${ustep()}" value="${inVal(o.w)}"></div>
+      <div class="row"><label for="pOH">Høyde (${unit})</label><input id="pOH" type="number" step="${ustep()}" value="${inVal(opH(o))}"></div>
       <div class="row"><label>Mål fra hjørne</label><div class="seg"><button data-from="A" aria-pressed="${o.from!=='B'}">Start</button><button data-from="B" aria-pressed="${o.from==='B'}">Slutt</button></div></div>
       <div class="row"><label for="pPos">Fra hjørnet (${unit})</label><input id="pPos" type="number" step="${ustep()}" value="${inVal(fromCorner(o))}"></div>
       <p class="muted">Avstanden er innvendig fra hjørnet med ringen til kanten av åpningen.</p>
-      ${api()?`<div class="row"><label>Neste måling</label><div class="seg"><button data-tg="pos" aria-pressed="${opTgt==='pos'}">Avstand</button><button data-tg="w" aria-pressed="${opTgt==='w'}">Bredde</button></div></div>`:''}
+      ${api()?`<div class="row"><label>Neste måling</label><div class="seg"><button data-tg="pos" aria-pressed="${opTgt==='pos'}">Avstand</button><button data-tg="w" aria-pressed="${opTgt==='w'}">Bredde</button><button data-tg="h" aria-pressed="${opTgt==='h'}">Høyde</button></div></div>`:''}
       ${o.type==='door'||o.type==='double'?`<div class="btns">${o.type==='door'?'<button id="pFlip">Bytt hengsleside</button>':''}<button id="pSide">Slå andre veien</button></div>`:''}
       <div class="btns"><button id="pDel" class="danger">Slett</button></div>`);
     $('pType').onchange = e => mutate(()=>{ o.type = e.target.value; });
     $('pW').onchange = e => { const v=fromIn(+e.target.value); if(!(v>1)) return; mutate(()=>setOpWidth(o,v)); };
     $('pPos').onchange = e => mutate(()=>setFromCorner(o, fromIn(+e.target.value)));
+    $('pOH').onchange = e => { const v=fromIn(+e.target.value); if(v>0) mutate(()=>{ o.h=v; }); };
     p.querySelectorAll('[data-from]').forEach(b=>b.onclick=()=>mutate(()=>{ o.from=b.dataset.from; }));
     p.querySelectorAll('[data-tg]').forEach(b=>b.onclick=()=>{ opTgt=b.dataset.tg; render(); });
     if($('pFlip')) $('pFlip').onclick = () => mutate(()=>{ o.flip=!o.flip; });
@@ -538,7 +559,7 @@ let cancelArm = false;
 let opTgt = 'pos', opTgtFor = null; // hva neste måling setter på valgt vindu/dør
 try{ const d = JSON.parse(localStorage.getItem(DKEY) || 'null'); if(d && d.rows && d.rows.length) draft = d; }catch(e){}
 const isScan = () => S.scan !== false;
-function blankPlan(){ uid = 1; return {v:1, scale:2.5, name:'Ny tegning', scan:false, walls:[], openings:[], items:[], labels:[], dims:[], uid:1}; }
+function blankPlan(){ uid = 1; return {v:1, scale:2.5, name:'Ny tegning', scan:false, walls:[], openings:[], items:[], labels:[], dims:[], rooms:[], uid:1}; }
 function saveDraft(){ try{ if(draft) localStorage.setItem(DKEY, JSON.stringify(draft)); else localStorage.removeItem(DKEY); }catch(e){} }
 function newRow(prev){ return {len:null, turn: prev && prev.turn==='L' ? 'L' : 'R', ang:90, t:null, diag:null, exist:null}; }
 const norm360 = a => ((a % 360) + 360) % 360;
@@ -633,6 +654,7 @@ function finishRoom(how){
     if(dims){ const off = (pi.A > 0 ? 1 : -1) * toU(30);
       for(let k=0; k<m; k++){ const p = C.V[k], q = C.V[(k+1)%m]; S.dims.push({id:nid('d'), x1:p.x, y1:p.y, x2:q.x, y2:q.y, off}); } }
     if(name) S.labels.push({id:nid('l'), text:name, x:pi.cx, y:pi.cy});
+    S.rooms = S.rooms || []; S.rooms.push({id:nid('r'), name:name || ('Rom ' + (S.rooms.length+1)), pts:C.V.map(q => ({x:q.x, y:q.y})), h:null});
     sel = null;
   });
   const area = Math.abs(pi.A)*S.scale*S.scale/10000;
@@ -803,6 +825,79 @@ function syncChrome(){
   $('mRoom').setAttribute('aria-pressed', mode==='roomstart' || !!draft);
 }
 
+// ---------- areal og maling ----------
+const DEF_OH = {window:120, door:210, double:210, slide:210}; // standard høyde på åpninger i cm
+let areaTgt = null; // rom som får neste lasermåling som takhøyde
+const opH = o => o.h > 0 ? o.h : toU(DEF_OH[o.type] || 210);
+const m2 = v => v.toFixed(2).replace('.', ',') + ' m²';
+const mtr = v => v.toFixed(2).replace('.', ',') + ' m';
+const ltr = v => (Math.ceil(v*10 - 1e-9)/10).toFixed(1).replace('.', ',') + ' l'; // rundes opp
+function paintCfg(){ S.paint = Object.assign({coats:2, cover:8, walls:true, ceil:false}, S.paint || {}); return S.paint; }
+function roomOps(r){ // vinduer og dører som står i veggene rundt rommet
+  const V = r.pts, m = V.length, tol = toU(4), out = [];
+  S.openings.forEach(o => { const w = find(S.walls, o.wall); if(!w) return; const g = geom(w), px = w.x1 + g.ux*o.c, py = w.y1 + g.uy*o.c;
+    for(let k=0; k<m; k++){ const p = V[k], q = V[(k+1)%m], L = Math.hypot(q.x-p.x, q.y-p.y) || 1e-6, ux = (q.x-p.x)/L, uy = (q.y-p.y)/L;
+      if(Math.abs(ux*g.uy - uy*g.ux) > 0.03) continue;
+      const c = (px-p.x)*ux + (py-p.y)*uy; if(c < -o.w/2 || c > L + o.w/2) continue;
+      if(Math.abs(Math.abs((px-p.x)*(-uy) + (py-p.y)*ux) - w.t/2) < tol){ out.push(o); break; } } });
+  return out;
+}
+function roomCalc(r){
+  const V = r.pts, m = V.length, u2m = S.scale/100; let per = 0;
+  for(let k=0; k<m; k++){ const p = V[k], q = V[(k+1)%m]; per += Math.hypot(q.x-p.x, q.y-p.y); }
+  const floor = Math.abs(polyInfo(V).A) * u2m * u2m, perM = per * u2m, H = r.h > 0 ? r.h/100 : 0;
+  const ops = roomOps(r), opA = ops.reduce((s,o) => s + o.w*u2m * opH(o)*u2m, 0), gross = perM * H;
+  return {floor, per:perM, H, ops, opA, gross, net:Math.max(0, gross - (H ? opA : 0)), ceil:floor};
+}
+function openArea(){ $('areaSheet').hidden = false; if(api() && !areaTgt){ const r = (S.rooms||[]).find(x => !(x.h > 0)); areaTgt = r ? r.id : null; } renderArea(true); }
+function closeArea(){ $('areaSheet').hidden = true; areaTgt = null; }
+function renderArea(force){
+  const b = $('areaBody'), a = document.activeElement;
+  if(!force && a && b.contains(a) && a.tagName==='INPUT' && a.type!=='checkbox') return;
+  const rooms = S.rooms || [], P = paintCfg();
+  if(!rooms.length){ b.innerHTML = `<p class="muted">Ingen rom ennå. Rom du måler med «Mål rom» kommer her med gulvareal, veggareal og malingsbehov.</p>
+    <p class="muted">Rom som ble målt før denne funksjonen kom, må måles på nytt for å komme med.</p>`; return; }
+  let tot = {floor:0, net:0, ceil:0, wallsP:0, ceilP:0}, cards = '';
+  rooms.forEach(r => { const c = roomCalc(r), inc = r.paint !== false;
+    tot.floor += c.floor; tot.net += c.net; tot.ceil += c.ceil; if(inc){ tot.wallsP += c.net; tot.ceilP += c.ceil; }
+    cards += `<div class="card${areaTgt===r.id?' tgtc':''}" data-r="${r.id}">
+      <div class="row"><label for="rn_${r.id}">Rom</label><input id="rn_${r.id}" data-f="name" type="text" value=""></div>
+      <div class="row"><label for="rh_${r.id}">Takhøyde (${unit})</label><input id="rh_${r.id}" data-f="h" type="number" step="${ustep()}" value="${cIn(r.h)}" placeholder="mål eller skriv"></div>
+      ${api() ? `<div class="btns"><button data-act="tgt" aria-pressed="${areaTgt===r.id}">${areaTgt===r.id ? 'Neste måling blir takhøyden' : 'Mål takhøyde med laser'}</button></div>` : ''}
+      <div class="kv"><span>Gulvareal</span><span>${m2(c.floor)}</span><span>Omkrets</span><span>${mtr(c.per)}</span>
+      ${c.H ? `<span>Vegger brutto</span><span>${m2(c.gross)}</span><span>Vinduer og dører (${c.ops.length})</span><span>−${m2(c.opA)}</span>
+        <span class="tot">Vegger netto</span><span class="tot">${m2(c.net)}</span>` : `<span>Veggareal</span><span>mål takhøyden</span>`}
+      <span>Tak</span><span>${m2(c.ceil)}</span></div>
+      <div class="btns"><label class="chk"><input type="checkbox" data-f="paint"${r.paint!==false?' checked':''}>Ta med i maling</label><button data-act="del" class="danger">Fjern fra listen</button></div>
+    </div>`; });
+  const coats = P.coats > 0 ? P.coats : 1, cover = P.cover > 0 ? P.cover : 8;
+  const lw = P.walls ? tot.wallsP*coats/cover : 0, lc = P.ceil ? tot.ceilP*coats/cover : 0;
+  b.innerHTML = cards + `<div class="card"><h2>Sum</h2>
+    <div class="kv"><span>Gulvareal</span><span>${m2(tot.floor)}</span><span>Vegger netto</span><span>${m2(tot.net)}</span><span>Tak</span><span>${m2(tot.ceil)}</span></div></div>
+    <div class="card"><h2>Maling</h2>
+    <div class="row"><label for="pCoats">Antall strøk</label><input id="pCoats" data-p="coats" type="number" step="1" min="1" value="${P.coats}"></div>
+    <div class="row"><label for="pCover">Dekker m² per liter</label><input id="pCover" data-p="cover" type="number" step="0.5" min="1" value="${P.cover}"></div>
+    <label class="chk"><input type="checkbox" data-p="walls"${P.walls?' checked':''}>Mal vegger</label>
+    <label class="chk"><input type="checkbox" data-p="ceil"${P.ceil?' checked':''}>Mal tak</label>
+    <div class="kv">${P.walls ? `<span>Vegger (${m2(tot.wallsP)})</span><span>${ltr(lw)}</span>` : ''}${P.ceil ? `<span>Tak (${m2(tot.ceilP)})</span><span>${ltr(lc)}</span>` : ''}
+    <span class="tot">Maling totalt</span><span class="tot">${ltr(lw + lc)}</span></div>
+    <p class="muted">Dekkevnen står på spannet, ofte 6–10 m² per liter. Vinduer og dører trekkes fra med høyden de har på tegningen. Kjøp gjerne litt ekstra.</p></div>`;
+  rooms.forEach(r => { const n = $('rn_' + r.id); if(n) n.value = r.name || ''; });
+  b.querySelectorAll('.card[data-r]').forEach(card => { const r = rooms.find(x => x.id===card.dataset.r); if(!r) return;
+    card.querySelector('[data-f="name"]').onchange = e => mutate(() => { r.name = e.target.value.trim() || r.name; });
+    card.querySelector('[data-f="h"]').onchange = e => mutate(() => { const v = cFrom(+e.target.value); r.h = v > 0 ? v : null; });
+    card.querySelector('[data-f="paint"]').onchange = e => mutate(() => { r.paint = e.target.checked; });
+    const t = card.querySelector('[data-act="tgt"]'); if(t) t.onclick = () => { areaTgt = areaTgt===r.id ? null : r.id; renderArea(true); };
+    card.querySelector('[data-act="del"]').onclick = () => mutate(() => { S.rooms = S.rooms.filter(x => x!==r); if(areaTgt===r.id) areaTgt = null; }); });
+  b.querySelectorAll('[data-p]').forEach(i => i.onchange = () => mutate(() => { const k = i.dataset.p;
+    if(i.type==='checkbox') P[k] = i.checked; else { const v = +i.value; if(v > 0) P[k] = v; } }));
+}
+function areaMeasure(c){
+  const r = (S.rooms||[]).find(x => x.id===areaTgt); if(!r) return false;
+  const a = document.activeElement; if(a && $('areaBody').contains(a) && a.blur) a.blur();
+  mutate(() => { r.h = c; }); toast('Takhøyde ' + (r.name||'') + ': ' + fmtMeas(c));
+  const next = S.rooms.find(x => !(x.h > 0)); areaTgt = next ? next.id : null; renderArea(true); return true;
+}
 // ---------- palette ----------
 const PAL = [
   ['window','Vindu','<path d="M2 8h22v4H2z"/><path d="M2 10h22"/>'],
@@ -948,6 +1043,7 @@ function setMode(m){ mode=m; $('mSel').setAttribute('aria-pressed',m==='select')
   $('hint').textContent = m==='roomstart' ? 'Trykk i hjørnet der rommet starter. Det fester seg til innvendige hjørner og veggflater. Esc avbryter.' : m==='dim' ? 'Dra mellom to punkter for å sette ut et mål. Velg det etterpå og dra det ut fra veggen.' : m==='measure' ? 'Dra mellom to punkter for å måle. Fester seg til veggflater og hjørner. Alt = fri vinkel.' : m==='wall' ? 'Dra for å tegne en vegg. Den låser seg vannrett/loddrett og fester seg til andre vegger.' : 'Dra for å flytte · tomt område panorerer · Delete sletter · Ctrl+Z angrer'; }
 
 // ---------- buttons & keys ----------
+$('bArea').onclick=openArea; $('areaClose').onclick=closeArea;
 $('mSel').onclick=()=>setMode('select'); $('mRoom').onclick=roomButton; $('mWall').onclick=()=>setMode('wall'); $('mDim').onclick=()=>{ setMode('dim'); render(); }; $('mMeas').onclick=()=>{ setMode('measure'); render(); };
 $('bUndo').onclick=doUndo; $('bRedo').onclick=doRedo;
 $('bIn').onclick=()=>{ const r=svg.getBoundingClientRect(); zoomAt(r.left+r.width/2,r.top+r.height/2,1.3); };
@@ -960,7 +1056,7 @@ $('bCopy').onclick=()=>{ const txt=snapshot(); if(navigator.clipboard&&navigator
 function showExport(txt){ $('importBox').hidden=false; $('importTxt').value=txt; $('importTxt').select(); toast('Marker og kopier teksten'); }
 $('bImport').onclick=()=>{ $('importBox').hidden=false; $('importTxt').value=''; $('importTxt').focus(); };
 $('bCancelImport').onclick=()=>{ $('importBox').hidden=true; };
-$('bDoImport').onclick=()=>{ try{ const d=JSON.parse($('importTxt').value); if(!d.walls||!d.openings) throw 0; const prev=snapshot(); S=d; S.items=S.items||[]; S.labels=S.labels||[]; S.dims=S.dims||[]; uid=Math.max(uid,d.uid||0,1000); sel=null; commit(prev); $('importBox').hidden=true; fit(); toast('Plantegning lastet inn'); }catch(err){ toast('Teksten er ikke gyldig plantegnings-JSON'); } };
+$('bDoImport').onclick=()=>{ try{ const d=JSON.parse($('importTxt').value); if(!d.walls||!d.openings) throw 0; const prev=snapshot(); S=d; S.items=S.items||[]; S.labels=S.labels||[]; S.dims=S.dims||[]; S.rooms=S.rooms||[]; uid=Math.max(uid,d.uid||0,1000); sel=null; commit(prev); $('importBox').hidden=true; fit(); toast('Plantegning lastet inn'); }catch(err){ toast('Teksten er ikke gyldig plantegnings-JSON'); } };
 let resetArm=false;
 $('bReset').onclick=()=>{ if(!resetArm){ resetArm=true; $('bReset').textContent='Trykk igjen for å bekrefte'; setTimeout(()=>{resetArm=false;$('bReset').textContent='Tilbakestill til skanning';},3000); return; }
   resetArm=false; $('bReset').textContent='Tilbakestill til skanning'; const prev=snapshot(); S=initial(); sel=null; commit(prev); fit(); toast('Tilbakestilt til skanningen'); };
@@ -974,6 +1070,7 @@ document.addEventListener('keydown', e=>{
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ if(typing) return; e.preventDefault(); doRedo(); return; }
   if(typing) return;
   if((e.key==='Delete'||e.key==='Backspace') && sel){ e.preventDefault(); const b=$('pDel'); if(b) b.click(); }
+  else if(e.key==='Escape' && !$('areaSheet').hidden){ closeArea(); }
   else if(e.key==='Escape'){ sel=null; setMode('select'); render(); }
   else if(e.key==='d'){ setMode('dim'); render(); }
   else if(e.key==='Enter' && mode==='measure' && measure){ keepMeasure(); }
@@ -1188,6 +1285,7 @@ function useMeasurement(c, fromHistory){
   const mode = fromHistory && $('glmMode').value==='show' ? 'len' : $('glmMode').value;
   if(mode==='show') return;
   if(draft){ draftMeasure(c); return; }
+  if(!$('areaSheet').hidden && areaTgt && areaMeasure(c)) return;
   if(!sel){ toast('Måling '+fmtMeas(c)+' – velg noe for å bruke den'); return; }
   const o = find(byType(sel.type), sel.id); if(!o) return; const v = toU(c);
   if(mode==='cal'){
@@ -1199,7 +1297,8 @@ function useMeasurement(c, fromHistory){
   else if(sel.type==='dim') mutate(()=>{ const G=dimGeom(o); o.x2=o.x1+G.ux*v; o.y2=o.y1+G.uy*v; });
   else if(sel.type==='op'){
     if(opTgt==='pos'){ mutate(()=>setFromCorner(o,v)); opTgt='w'; render(); toast('Avstand fra hjørnet '+fmtMeas(c)+'. Neste måling er bredden.'); return; }
-    mutate(()=>setOpWidth(o,v)); opTgt='pos'; render(); }
+    if(opTgt==='h'){ mutate(()=>{ o.h=v; }); opTgt='pos'; render(); toast('Høyde '+fmtMeas(c)); return; }
+    mutate(()=>setOpWidth(o,v)); opTgt='h'; render(); toast('Bredde '+fmtMeas(c)+'. Neste måling er høyden.'); return; }
   else if(sel.type==='item') mutate(()=>{ o.w=v; });
   else { toast('Tekst har ingen lengde'); return; }
   toast('Satt til '+fmtMeas(c));
@@ -1218,7 +1317,7 @@ async function glmTrigger(){
 function fileName(){ const n=(S.name||'').replace(/[\\/:*?"<>|]/g,'').trim(); return (n?'plantegning '+n:'plantegning')+'.plan.json'; }
 async function saveFile(){ const a=api(); if(!a) return; const r=await a.save_plan(snapshot(), fileName()); if(r.ok&&!r.cancelled) toast('Lagret: '+r.path); else if(!r.ok) toast('Kunne ikke lagre: '+r.error); }
 async function openFile(){ const a=api(); if(!a) return; const r=await a.open_plan(); if(!r.ok){ toast('Kunne ikke åpne: '+r.error); return; } if(r.cancelled) return;
-  try{ const d=JSON.parse(r.text); if(!d.walls||!d.openings) throw 0; const prev=snapshot(); S=d; S.items=S.items||[]; S.labels=S.labels||[]; S.dims=S.dims||[]; uid=Math.max(uid,d.uid||0,1000); sel=null; commit(prev); fit(); toast('Åpnet '+r.path); }
+  try{ const d=JSON.parse(r.text); if(!d.walls||!d.openings) throw 0; const prev=snapshot(); S=d; S.items=S.items||[]; S.labels=S.labels||[]; S.dims=S.dims||[]; S.rooms=S.rooms||[]; uid=Math.max(uid,d.uid||0,1000); sel=null; commit(prev); fit(); toast('Åpnet '+r.path); }
   catch(e){ toast('Filen er ikke en gyldig plantegning'); } }
 function enableApp(){ glmRefresh();
   $('glmNoApp').hidden=true; $('glmCtl').hidden=false; $('bSaveF').hidden=false; $('bOpenF').hidden=false; glmUi();
