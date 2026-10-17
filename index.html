@@ -198,7 +198,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web d1ace290a7</p>
+      <p class="muted" id="verTxt">Versjon web 76e9b84e74</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -992,7 +992,7 @@ const api = () => (window.pywebview && window.pywebview.api) || (IS_WEB ? webApi
 const GLM_SVC = '02a6c0d0-0451-4000-b000-fb3210111989', GLM_CHR = '02a6c0d1-0451-4000-b000-fb3210111989';
 const CMD_MEASURE = new Uint8Array([0xC0,0x56,0x01,0x00,0x1E]), CMD_SYNC = new Uint8Array([0xC0,0x55,0x02,0x01,0x00,0x1A]);
 const hexOf = u8 => Array.from(u8, b => b.toString(16).padStart(2,'0')).join(' ');
-const wb = {dev:null, chr:null, laser:false, last:[null,0], wake:null, connecting:false};
+const wb = {dev:null, chr:null, laser:false, last:[null,0], wake:null, connecting:false, kind:null};
 const emit = (k,p) => { if(window.onGlm) window.onGlm(k,p); };
 async function wbWrite(data){ const c = wb.chr; if(!c) throw new Error('Måleren er ikke klar');
   if(c.properties.write) await c.writeValueWithResponse(data); else await c.writeValueWithoutResponse(data); }
@@ -1002,6 +1002,61 @@ function wbNotify(ev){
     const m0 = new DataView(d.buffer, d.byteOffset, d.byteLength).getFloat32(7, true);
     if(!isNaN(m0) && m0 >= 0.05 && m0 <= 60){ const m = Math.round(m0*10000)/10000, now = performance.now();
       if(wb.last[0]===m && now - wb.last[1] < 300) return; wb.last = [m, now]; wb.laser = false; emit('measurement', {m}); } }
+}
+// ---------- Bosch MT-protokoll (nyere GLM-modeller) ----------
+// Tjeneste 00005301-…, skriv på 4301, varsler på 4302. Meldinger: C0 <kommando> <lengde> <data> <crc8>,
+// delt i biter på 19 byte med et sekvens-byte foran. Hver mottatt bit kvitteres med FF <sekvens> 00.
+// Kilde: github.com/piannucci/pymtprotocol
+const MT_SVC = '00005301-0000-0041-5253-534f46540000', MT_TX = '00004301-0000-0041-5253-534f46540000', MT_RX = '00004302-0000-0041-5253-534f46540000';
+const mt = {tx:null, seq:1, buf:[], aseq:-1, pending:null, wq:Promise.resolve()};
+function crc8(data){ let v = 0xaa; for(const b of data){ for(let i=0; i<8; i++){ const x = ((v >> 7) ^ (b >> (7-i))) & 1; v = (v << 1) & 0xff; if(x) v ^= 0xa6; } } return v; }
+function mtChunks(cmd, payload){
+  const f = [0xC0, cmd, payload.length, ...payload]; f.push(crc8(f));
+  const count = Math.ceil(f.length / 19), out = [];
+  for(let i=0; i<count; i++) out.push([(mt.seq << 4) | (count-1-i), ...f.slice(19*i, 19*(i+1))]);
+  mt.seq = (mt.seq + 1) % 15; return out;
+}
+function mtWrite(bytes){ // skrivinger må komme etter hverandre
+  const u = new Uint8Array(bytes), p = mt.wq.then(() => { emit('raw', {dir:'ut', hex:hexOf(u)}); return mt.tx.writeValueWithResponse(u); });
+  mt.wq = p.catch(e => emit('raw', {dir:'feil', hex:'skriving feilet: ' + e.message})); return p;
+}
+function mtRequest(cmd, payload){
+  return new Promise((resolve, reject) => {
+    if(mt.pending) mt.pending.reject(new Error('Ny forespørsel før svar'));
+    const timer = setTimeout(() => { mt.pending = null; reject(new Error('Måleren svarte ikke')); }, 4000);
+    mt.pending = {resolve: r => { clearTimeout(timer); resolve(r); }, reject: e => { clearTimeout(timer); reject(e); }};
+    mtChunks(cmd, payload).forEach(c => mtWrite(c).catch(e => { if(mt.pending){ mt.pending.reject(e); mt.pending = null; } }));
+  });
+}
+function mtSyncParse(p){
+  const dv = new DataView(new Uint8Array(p).buffer);
+  return {type:p[0] & 0x1f, ref:p[1] & 7, result:p.length >= 20 ? dv.getFloat32(16, true) : NaN, d0:p.length >= 8 ? dv.getFloat32(4, true) : NaN, laser:p.length > 28 ? p[28] & 1 : 0};
+}
+function mtMeasurement(s, src){
+  emit('raw', {dir:'info', hex:src + ': type ' + s.type + ', ref ' + s.ref + ', resultat ' + s.result + ', avstand ' + s.d0 + ', laser ' + s.laser});
+  wb.laser = !!s.laser;
+  if(s.type !== 1){ if(s.result > 0) toast('Måleren står i en annen målemodus. Velg vanlig lengdemåling.'); return; }
+  const m0 = s.result; if(!(m0 >= 0.05 && m0 <= 250)) return;
+  const m = Math.round(m0*10000)/10000, now = performance.now();
+  if(wb.last[0]===m && now - wb.last[1] < 1500) return; wb.last = [m, now]; wb.laser = false; emit('measurement', {m});
+}
+function mtNotify(ev){
+  const v = ev.target.value, d = Array.from(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)); emit('raw', {dir:'inn', hex:hexOf(d)});
+  if(!d.length || d[0]===0xff) return; // kvittering for noe vi sendte
+  const s = d[0]; mtWrite([0xff, s, 0x00]).catch(() => {});
+  if(s !== mt.aseq - 1) mt.buf = [];
+  mt.aseq = s; mt.buf.push(...d.slice(1));
+  if((s & 0xf) !== 0) return; // flere biter kommer
+  const f = mt.buf; mt.buf = []; mt.aseq = -1;
+  if(crc8(f) !== 0){ emit('raw', {dir:'feil', hex:'kontrollsum stemmer ikke'}); return; }
+  const type = (f[0] & 0xc0) >> 6, status = f[0] & 0x3f, hl = type===0 ? 0 : 1, payload = f.slice(2+hl, 2+hl+f[1+hl]);
+  if(type===0){ if(mt.pending){ const p = mt.pending; mt.pending = null; p.resolve({status, payload}); } }
+  else if(type===3 && f[1]===0x50) mtMeasurement(mtSyncParse(payload), 'måling fra knappen');
+}
+async function mtControl(measure){ // 0x50: bit 6 = automatisk synk, lav del = måletype (1 = lengde); referanse 2 = bakkant
+  const r = await mtRequest(0x50, [0x40 | (measure ? 1 : 0), 2]);
+  if(r.status) throw new Error('Måleren svarte med feilkode ' + r.status);
+  return r.payload.length ? mtSyncParse(r.payload) : null;
 }
 async function wakeOn(){ try{ if(navigator.wakeLock && !wb.wake){ wb.wake = await navigator.wakeLock.request('screen'); wb.wake.addEventListener('release', () => { wb.wake = null; }); } }catch(e){} }
 document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible' && wb.chr) wakeOn(); });
@@ -1013,7 +1068,7 @@ const webApi = {
       if(!navigator.bluetooth) throw new Error('Denne nettleseren støtter ikke Bluetooth. Bruk Chrome på Android eller PC.');
       emit('status', {state:'searching', text:'Velg måleren i listen. Navnet inneholder vanligvis GLM.'});
       // alle enheter vises: navnet på måleren kan være for eksempel «Bosch GLM…», som et prefiks-filter ikke fanger
-      const dev = await navigator.bluetooth.requestDevice({acceptAllDevices:true, optionalServices:[GLM_SVC]});
+      const dev = await navigator.bluetooth.requestDevice({acceptAllDevices:true, optionalServices:[GLM_SVC, MT_SVC, 'device_information']});
       emit('raw', {dir:'info', hex:'valgt: ' + (dev.name || '(uten navn)') + ' ' + dev.id});
       if(!dev._glmListen){ dev._glmListen = true;
         dev.addEventListener('gattserverdisconnected', () => { if(wb.connecting) return; wb.chr = null; wb.laser = false;
@@ -1025,12 +1080,28 @@ const webApi = {
         try{
           stage = 'koble'; emit('status', {state:'connecting', text:'Kobler til ' + (dev.name || 'GLM') + ' (forsøk ' + k + ') …'});
           const srv = await dev.gatt.connect(); await new Promise(r => setTimeout(r, 600));
-          stage = 'tjeneste'; svc = await srv.getPrimaryService(GLM_SVC);
+          stage = 'tjeneste';
+          try{ svc = await srv.getPrimaryService(GLM_SVC); wb.kind = 'old'; }
+          catch(e1){ svc = await srv.getPrimaryService(MT_SVC); wb.kind = 'mt'; }
         }catch(e){ last = e; emit('raw', {dir:'feil', hex:'forsøk ' + k + ' (' + stage + '): ' + e.name + ': ' + e.message});
           try{ dev.gatt.disconnect(); }catch(_){} await new Promise(r => setTimeout(r, 1000)); }
       }
       wb.connecting = false;
       if(!svc) throw last;
+      emit('raw', {dir:'info', hex:'protokoll: ' + (wb.kind==='mt' ? 'MT (nyere GLM)' : 'eldre GLM')});
+      try{ const di = await dev.gatt.getPrimaryService('device_information'), dec = new TextDecoder();
+        for(const [n,c] of [['modell','model_number_string'], ['produsent','manufacturer_name_string'], ['fastvare','firmware_revision_string']]){
+          try{ emit('raw', {dir:'info', hex:n + ': ' + dec.decode(await (await di.getCharacteristic(c)).readValue())}); }catch(_){} } }catch(_){}
+      if(wb.kind==='mt'){
+        stage = 'kanal'; mt.tx = await svc.getCharacteristic(MT_TX); const rx = await svc.getCharacteristic(MT_RX);
+        mt.seq = 1; mt.buf = []; mt.aseq = -1; mt.pending = null; mt.wq = Promise.resolve();
+        stage = 'varsler'; rx.addEventListener('characteristicvaluechanged', mtNotify); await rx.startNotifications();
+        wb.dev = dev; wb.chr = mt.tx; wb.laser = false;
+        if(sync){ try{ const s = await mtControl(false); if(s) emit('raw', {dir:'info', hex:'automatisk synk på'}); }
+          catch(e){ emit('raw', {dir:'feil', hex:'synk feilet: ' + e.message}); } }
+        emit('status', {state:'connected', text:'Tilkoblet ' + (dev.name || 'GLM')}); wakeOn();
+        return {ok:true, name:dev.name};
+      }
       stage = 'kanal';
       let chr; try{ chr = await svc.getCharacteristic(GLM_CHR); }
       catch(e){ const all = await svc.getCharacteristics();
@@ -1067,7 +1138,9 @@ const webApi = {
   },
   async glm_disconnect(){ try{ if(wb.dev && wb.dev.gatt.connected) wb.dev.gatt.disconnect(); }catch(e){} return {ok:true}; },
   async glm_trigger(){
-    try{ if(!wb.chr) throw new Error('Måleren er ikke tilkoblet'); await wbWrite(CMD_MEASURE); emit('raw', {dir:'ut', hex:hexOf(CMD_MEASURE)});
+    try{ if(!wb.chr) throw new Error('Måleren er ikke tilkoblet');
+      if(wb.kind==='mt'){ const s = await mtControl(true); if(s) mtMeasurement(s, 'svar'); return {ok:true, laser:wb.laser}; }
+      await wbWrite(CMD_MEASURE); emit('raw', {dir:'ut', hex:hexOf(CMD_MEASURE)});
       wb.laser = !wb.laser; return {ok:true, laser:wb.laser}; }
     catch(e){ return {ok:false, error:e.message || String(e)}; }
   },
