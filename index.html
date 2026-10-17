@@ -1,0 +1,1120 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GLM Plantegning</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1d5fa6">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+html,body{margin:0}
+[hidden]{display:none!important}
+/* Layout: drafting table — header strip, drawing sheet fills the space, property rail on the right (below on phones) */
+:root{
+  --paper:#f7f8f6; --sheet:#ffffff; --ink:#1b232a; --muted:#5b6872; --line:#d6dcdf;
+  --accent:#1d5fa6; --accent-soft:#e2ecf7; --sel:#d4661b; --terr:#eef1ec; --furn:#7c8a93;
+  --scan-filter:none;
+  --f-ui:'Barlow',system-ui,sans-serif; --f-head:'Barlow Condensed','Barlow',system-ui,sans-serif; --f-num:'JetBrains Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#14191d; --sheet:#1b2227; --ink:#e3e8eb; --muted:#9aa7b0; --line:#2f3a41;
+  --accent:#6aa6e6; --accent-soft:#1f3347; --sel:#f0904a; --terr:#202a26; --furn:#8d9ba4;
+  --scan-filter:invert(1) hue-rotate(180deg); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#14191d; --sheet:#1b2227; --ink:#e3e8eb; --muted:#9aa7b0; --line:#2f3a41;
+  --accent:#6aa6e6; --accent-soft:#1f3347; --sel:#f0904a; --terr:#202a26; --furn:#8d9ba4;
+  --scan-filter:invert(1) hue-rotate(180deg); color-scheme:dark}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-ui);font-size:14px;margin:0;overflow:hidden}
+.app{height:100%;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);background:var(--sheet)}
+h1{font-family:var(--f-head);font-weight:600;font-size:22px;margin:0;letter-spacing:.2px;margin-right:auto}
+h1 small{font-family:var(--f-num);font-weight:400;font-size:12px;color:var(--muted);margin-left:8px;letter-spacing:0}
+.grp{display:flex;gap:4px;align-items:center}
+button{font:500 13px var(--f-ui);color:var(--ink);background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:7px 11px;cursor:pointer;min-height:36px;display:inline-flex;align-items:center;gap:6px}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--sheet)}
+button.danger{color:var(--sel)}
+button:disabled{opacity:.4;cursor:default}
+button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.main{flex:1;display:flex;min-height:0}
+.stage{flex:1;position:relative;min-width:0;background:var(--sheet);touch-action:none}
+#svg{width:100%;height:100%;display:block;cursor:default}
+#svg.pan{cursor:grabbing}
+#svg.draw{cursor:crosshair}
+.hint{position:absolute;left:12px;bottom:12px;font:400 12px var(--f-ui);color:var(--muted);background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:5px 9px;pointer-events:none;max-width:calc(100% - 24px)}
+.scalebar{position:absolute;right:12px;bottom:12px;font:400 11px var(--f-num);color:var(--muted);display:flex;flex-direction:column;align-items:flex-end;gap:3px;pointer-events:none}
+.scalebar i{display:block;height:6px;border:1.5px solid var(--ink);border-top:0}
+aside{width:300px;border-left:1px solid var(--line);background:var(--paper);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:20px}
+aside h2{font:600 12px var(--f-ui);text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 10px}
+.palette{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.palette button{flex-direction:column;gap:3px;padding:8px 4px;font-size:12px}
+.palette button svg{width:26px;height:20px;stroke-width:1.4}
+.props{display:flex;flex-direction:column;gap:10px}
+.row{display:grid;grid-template-columns:100px minmax(0,1fr);align-items:center;gap:8px}
+.row label{color:var(--muted);font-size:13px}
+input,select,textarea{font:400 14px var(--f-ui);color:var(--ink);background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-height:36px;width:100%;box-sizing:border-box}
+input[type=number]{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+input[type=range]{padding:0;border:0;background:transparent}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+.sel-title{font:600 18px var(--f-head);margin:0}
+.muted{color:var(--muted);font-size:13px;line-height:1.5;margin:0}
+.calib{border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px}
+textarea{min-height:90px;font-family:var(--f-num);font-size:11px;resize:vertical}
+.toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:7px 12px;border-radius:6px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .2s}
+.toast.on{opacity:1}
+@media (prefers-reduced-motion: reduce){.toast{transition:none}}
+/* svg */
+.wall{stroke:var(--ink);stroke-linecap:square}
+.hit{stroke:transparent;fill:none;cursor:move}
+.gap{stroke:var(--sheet)}
+.op{stroke:var(--ink);fill:none;stroke-width:1}
+.opfill{fill:var(--sheet);stroke:var(--ink);stroke-width:1}
+.furn{fill:var(--sheet);stroke:var(--furn);stroke-width:1.2}
+.furnl{stroke:var(--furn);stroke-width:1;fill:none}
+.terr{fill:var(--terr);stroke:var(--furn);stroke-width:1;stroke-dasharray:5 4}
+.lbl{font:500 12px var(--f-ui);fill:var(--ink);cursor:move;user-select:none}
+.ilbl{font:500 7px var(--f-ui);fill:var(--furn);pointer-events:none;user-select:none}
+.selbox{fill:none;stroke:var(--sel);stroke-width:1.5;stroke-dasharray:4 3;pointer-events:none}
+.selwall{stroke:var(--sel);stroke-linecap:square;opacity:.55;pointer-events:none}
+.handle{fill:var(--sheet);stroke:var(--sel);stroke-width:2;cursor:grab}
+.dim{font:500 9px var(--f-num);fill:var(--sel);pointer-events:none;user-select:none}
+.meas{stroke:var(--accent);stroke-width:1.5}
+.measbg{fill:var(--sheet);stroke:var(--accent);stroke-width:1}
+.meast{font:600 11px var(--f-num);fill:var(--accent)}
+.dimln{stroke:var(--ink);stroke-width:.8;fill:none}
+.dimtx{font:500 9px var(--f-num);fill:var(--ink);user-select:none}
+.dimsel{stroke:var(--sel)}
+.dimtx.dimsel{fill:var(--sel);stroke:none}
+.glm{display:flex;flex-direction:column;gap:10px;background:var(--sheet);border:1px solid var(--line);border-radius:8px;padding:12px}
+.glmstat{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.dot{width:10px;height:10px;border-radius:5px;background:var(--line);flex:none}
+.dot.on{background:#2f9e5b}.dot.busy{background:var(--sel)}
+.glmval{font:500 30px var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.glmval small{font-size:14px;color:var(--muted);margin-left:4px}
+.hist{display:flex;flex-wrap:wrap;gap:4px}
+.hist button{font:400 12px var(--f-num);min-height:28px;padding:3px 8px}
+.rawlog{font:400 10.5px/1.4 var(--f-num);color:var(--muted);max-height:140px;overflow:auto;white-space:pre;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px}
+details summary{cursor:pointer;color:var(--muted);font-size:13px}
+.ub{min-width:44px;justify-content:center;font-family:var(--f-num)}
+.gridl{stroke:var(--line);stroke-width:.5}
+.scan{filter:var(--scan-filter)}
+/* mål rom */
+.draftf{fill:none;stroke:var(--accent);stroke-linecap:round;stroke-linejoin:round}
+.draftact{stroke:var(--sel)}
+.draftw{stroke:var(--accent);opacity:.2;stroke-linecap:square}
+.draftc{stroke:var(--accent);stroke-dasharray:6 5;fill:none}
+.draftst{fill:var(--sheet);stroke:var(--accent)}
+.rows{display:flex;flex-direction:column;gap:4px}
+.rrow{display:grid;grid-template-columns:20px 22px minmax(0,1fr) auto;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--sheet);cursor:pointer;font:400 13px var(--f-num)}
+.rrow:hover{border-color:var(--muted)}
+.rrow.on{border-color:var(--sel);box-shadow:inset 3px 0 0 var(--sel)}
+.rrow .n{color:var(--muted)}
+.rrow .ex{font:400 11px var(--f-ui);color:var(--muted)}
+.rdet{display:flex;flex-direction:column;gap:8px;padding:10px 8px;border:1px solid var(--sel);border-radius:6px;background:var(--sheet)}
+.seg{display:flex;gap:4px}
+.seg button{flex:1;justify-content:center;padding:6px 4px;font-size:15px}
+.stat{font:400 13px/1.5 var(--f-ui);margin:0}
+.warn{color:var(--sel)}
+.chk{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+.chk input{width:auto;min-height:0}
+input.tgt{outline:2px solid var(--accent);outline-offset:1px}
+@media (max-width:760px){
+  .main{flex-direction:column}
+  .stage{flex:1 1 55%}
+  aside{width:auto;flex:1 1 45%;border-left:0;border-top:1px solid var(--line);padding-block:14px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .palette{grid-template-columns:repeat(4,minmax(0,1fr))}
+  h1 small{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <h1><span id="planName">Plantegning</span> <small id="scaleInfo"></small></h1>
+  <div class="grp" role="group" aria-label="Verktøy">
+    <button id="mSel" aria-pressed="true" title="Velg og flytt (V)"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-2 6z"/></svg>Velg</button>
+    <button id="mWall" aria-pressed="false" title="Tegn vegg (W)"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20V8h14v12"/></svg>Tegn vegg</button>
+    <button id="mRoom" aria-pressed="false" title="Mål opp et rom med laseren"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 4v3M12 4v3M16 4v3M4 8h3M4 12h3M4 16h3"/></svg>Mål rom</button>
+    <button id="mMeas" aria-pressed="false" title="Mål avstand (M)"><svg viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg>Mål</button>
+    <button id="mDim" aria-pressed="false" title="Sett ut mål (D)"><svg viewBox="0 0 24 24"><path d="M3 6v12M21 6v12M3 12h18"/><path d="M6 14l-3-2 3-2M18 10l3 2-3 2"/></svg>Sett ut mål</button>
+  </div>
+  <div class="grp" role="group" aria-label="Måleenhet">
+    <button class="ub" data-u="m" aria-pressed="false">m</button><button class="ub" data-u="cm" aria-pressed="true">cm</button><button class="ub" data-u="mm" aria-pressed="false">mm</button>
+  </div>
+  <div class="grp">
+    <button id="bUndo" title="Angre (Ctrl+Z)" aria-label="Angre"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg></button>
+    <button id="bRedo" title="Gjør om (Ctrl+Y)" aria-label="Gjør om"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/></svg></button>
+  </div>
+  <div class="grp">
+    <button id="bOut" aria-label="Zoom ut"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M21 21l-5-5"/></svg></button>
+    <button id="bIn" aria-label="Zoom inn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M11 8v6M21 21l-5-5"/></svg></button>
+    <button id="bFit">Tilpass</button>
+  </div>
+</header>
+<div class="main">
+  <div class="stage" id="stage">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg" aria-label="Plantegning"><g id="gridL"></g><g id="world"></g></svg>
+    <div class="hint" id="hint"></div>
+    <div class="scalebar" id="scalebar"><span id="sbText">1 m</span><i id="sbBar"></i></div>
+    <div class="toast" id="toast"></div>
+  </div>
+  <aside>
+    <section class="glm" id="glmBox">
+      <h2 style="margin:0">Laseravstandsmåler</h2>
+      <div class="glmstat"><span class="dot" id="glmDot"></span><span id="glmText">Ikke tilkoblet</span></div>
+      <p class="muted" id="glmNoApp">Måleren virker i Chrome på Android og PC.</p>
+      <div id="glmCtl" class="props" hidden>
+        <div class="btns"><button id="gConn">Koble til GLM</button><button id="gTrig" disabled>Laser på</button></div>
+        <div class="glmval" id="glmVal">– <small>cm</small></div>
+        <div class="row"><label for="glmMode">Når måling kommer</label><select id="glmMode">
+          <option value="len">Sett lengde på valgt</option>
+          <option value="cal" id="optCal">Kalibrer med valgt</option>
+          <option value="show">Bare vis</option>
+        </select></div>
+        <p class="muted" id="glmTip">Mens du måler et rom, går målingen til rommet. Ellers virker den på valgt mål, vegg, vindu, dør eller møbel.</p>
+        <div class="hist" id="glmHist" aria-label="Siste målinger"></div>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)"><input id="glmSync" type="checkbox" checked style="width:auto;min-height:0">Ta imot målinger fra knappen på måleren</label>
+        <details><summary>Rådata fra måleren</summary><div class="rawlog" id="glmRaw"></div><div class="btns" style="margin-top:6px"><button id="gCopyRaw">Kopier logg</button></div></details>
+      </div>
+    </section>
+    <section id="props" class="props" aria-live="polite"></section>
+    <section>
+      <h2>Legg til</h2>
+      <div class="palette" id="palette"></div>
+    </section>
+    <section class="props">
+      <h2>Visning</h2>
+      <div class="row" id="scanRow"><label for="scanOp">Skannet tegning</label><input id="scanOp" type="range" min="0" max="100" value="0"></div>
+      <div class="row"><label for="dimsOn">Vis mål</label><input id="dimsOn" type="checkbox" checked style="width:auto;min-height:0"></div>
+      <div class="row"><label for="gridOn">Rutenett 1 m</label><input id="gridOn" type="checkbox" checked style="width:auto;min-height:0"></div>
+    </section>
+    <section class="props">
+      <h2>Data</h2>
+      <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
+      <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
+      <div class="btns">
+        <button id="bSaveF" hidden>Lagre fil</button>
+        <button id="bOpenF" hidden>Åpne fil</button>
+        <button id="bCopy">Kopier JSON</button>
+        <button id="bImport">Lim inn JSON</button>
+        <button id="bNew">Ny tegning</button>
+        <button id="bReset" class="danger">Tilbakestill til skanning</button>
+      </div>
+      <div id="importBox" hidden class="props">
+        <textarea id="importTxt" aria-label="JSON å lime inn" placeholder="Lim inn JSON her"></textarea>
+        <div class="btns"><button id="bDoImport">Last inn</button><button id="bCancelImport">Avbryt</button></div>
+      </div>
+    </section>
+  </aside>
+</div>
+</div>
+
+<script>
+(function(){
+const BG = "";
+const BGW = 935, BGH = 892;
+const NS = "http://www.w3.org/2000/svg";
+const KEY = "glm-plantegning-web-v1";
+
+// ---------- initial model (units = scan pixels, scale = cm per unit) ----------
+let uid = 1; const nid = p => p + (uid++);
+function W(x1,y1,x2,y2,t){ return {id:nid('w'),x1,y1,x2,y2,t}; }
+function initial(){ return blankPlan(); }
+
+// ---------- state ----------
+let S, undo = [], redo = [];
+let sel = null;            // {type,id}
+let mode = 'select';
+let view = {tx:0, ty:0, k:1};
+let showGrid = true, scanOp = 0;
+let measure = null; // {x1,y1,x2,y2}
+let showDims = true;
+
+function load(){
+  try{ const raw = localStorage.getItem(KEY); if(raw){ const d = JSON.parse(raw); if(d && d.walls){ S = d; S.dims = S.dims || []; uid = d.uid || 1000; S.items.forEach(i=>{ if(i.x===592 && i.rot===90 && i.w===24){ const t=i.w; i.w=i.h; i.h=t; } else if(i.x===592 && i.rot===0 && i.w===24 && (i.kind==='kum'||i.kind==='komfyr')){ const t=i.w; i.w=i.h; i.h=t; i.rot=90; } }); return; } } }catch(e){}
+  S = initial();
+}
+function save(){ S.uid = uid; try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function snapshot(){ S.uid = uid; return JSON.stringify(S); }
+function commit(prev){ undo.push(prev); if(undo.length>200) undo.shift(); redo = []; save(); updUndo(); }
+function doUndo(){ if(!undo.length) return; redo.push(snapshot()); S = JSON.parse(undo.pop()); uid = S.uid||uid; validateSel(); save(); render(); updUndo(); }
+function doRedo(){ if(!redo.length) return; undo.push(snapshot()); S = JSON.parse(redo.pop()); uid = S.uid||uid; validateSel(); save(); render(); updUndo(); }
+function updUndo(){ $('bUndo').disabled = !undo.length; $('bRedo').disabled = !redo.length; }
+function mutate(fn){ const prev = snapshot(); fn(); commit(prev); render(); }
+
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
+const find = (arr,id) => arr.find(o => o.id === id);
+const byType = t => t==='wall'?S.walls : t==='op'?S.openings : t==='item'?S.items : t==='dim'?S.dims : S.labels;
+function geom(w){ const dx=w.x2-w.x1, dy=w.y2-w.y1, L=Math.hypot(dx,dy)||1e-6; const ux=dx/L, uy=dy/L; return {dx,dy,L,ux,uy,nx:-uy,ny:ux}; }
+const cm = u => Math.round(u * S.scale);
+const toU = c => c / S.scale;
+let unit = 'cm'; try{ unit = localStorage.getItem('plantegning-enhet') || 'cm'; }catch(e){}
+const UF = {m:0.01, cm:1, mm:10}, UD = {m:3, cm:1, mm:0};
+function uval(u){ return u*S.scale*UF[unit]; }
+function ufmt(u){ const v=uval(u); const d=UD[unit]; const r=Math.round(v*Math.pow(10,d))/Math.pow(10,d); return (unit==='m'?r.toFixed(d):String(r)).replace('.',','); }
+function ulab(u){ return ufmt(u)+' '+unit; }
+function inVal(u){ return +uval(u).toFixed(UD[unit]); }
+function ustep(){ return unit==='m'?0.001 : unit==='cm'?0.1 : 1; }
+function fromIn(v){ return toU(v/UF[unit]); }
+function fmtMeasN(c){ return (c*UF[unit]).toFixed(UD[unit]+1).replace('.',','); }
+function fmtMeas(c){ return fmtMeasN(c)+' '+unit; }
+function setUnit(u){ unit=u; try{ localStorage.setItem('plantegning-enhet',u); }catch(e){}
+  document.querySelectorAll('.ub').forEach(b=>b.setAttribute('aria-pressed', b.dataset.u===u));
+  const sv=document.getElementById('scaleInfo'); if(sv) sv.textContent='1 rute = 1 m · mål i '+unit;
+  if(typeof glmRefresh==='function') glmRefresh(); render(); }
+function snapU(v){ const g = toU(5); return Math.round(v/g)*g; }
+function el(tag, attrs, parent){ const e = document.createElementNS(NS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); if(parent) parent.appendChild(e); return e; }
+function validateSel(){ if(sel && !find(byType(sel.type), sel.id)) sel = null; }
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('on'),1600); }
+
+// ---------- rendering ----------
+const svg = $('svg'), world = $('world');
+function applyView(){ world.setAttribute('transform', `translate(${view.tx} ${view.ty}) scale(${view.k})`); drawGrid(); updScaleBar(); }
+function updScaleBar(){
+  const pxPerM = toU(100) * view.k; let m = 1; const opts=[0.5,1,2,5,10];
+  for(const o of opts){ if(o*pxPerM >= 60){ m=o; break; } m=o; }
+  $('sbBar').style.width = (m*pxPerM) + 'px'; $('sbText').textContent = (m<1? m*100+' cm' : m+' m');
+  $('scaleInfo').textContent = '1 rute = 1 m · mål i '+unit;
+}
+
+function render(){
+  world.textContent = '';
+  if(scanOp > 0 && isScan()) el('image',{href:BG, x:0, y:0, width:BGW, height:BGH, opacity:scanOp/100, class:'scan', 'pointer-events':'none'}, world);
+  drawGrid();
+  const LAYER = {terrasse:0, benk:1, trapp:1, seng:1, sofa:1, bord:1};
+  S.items.slice().sort((a,b)=>(LAYER[a.kind]??2)-(LAYER[b.kind]??2)).forEach(drawItem);
+  S.walls.forEach(drawWall);
+  S.openings.forEach(drawOpening);
+  S.labels.forEach(drawLabel);
+  if(showDims) S.dims.forEach(drawDim);
+  drawSelection();
+  drawMeasure();
+  drawDraft();
+  drawHover();
+  syncChrome();
+  renderProps();
+}
+function drawGrid(){ // rutenett over hele det synlige området
+  const g = $('gridL'); g.textContent = ''; g.setAttribute('transform', world.getAttribute('transform') || ''); if(!showGrid) return;
+  const r = svg.getBoundingClientRect(), step = toU(100); if(!(step > 0)) return;
+  const x0 = -view.tx/view.k, x1 = (r.width-view.tx)/view.k, y0 = -view.ty/view.k, y1 = (r.height-view.ty)/view.k;
+  if((x1-x0)/step > 400 || (y1-y0)/step > 400) return;
+  for(let x=Math.floor(x0/step)*step; x<=x1; x+=step) el('line',{x1:x,y1:y0,x2:x,y2:y1,class:'gridl'},g);
+  for(let y=Math.floor(y0/step)*step; y<=y1; y+=step) el('line',{x1:x0,y1:y,x2:x1,y2:y,class:'gridl'},g);
+}
+function drawWall(w){
+  el('line',{x1:w.x1,y1:w.y1,x2:w.x2,y2:w.y2,'stroke-width':w.t,class:'wall'},world);
+  el('line',{x1:w.x1,y1:w.y1,x2:w.x2,y2:w.y2,'stroke-width':Math.max(w.t,14/view.k),class:'hit','data-t':'wall','data-id':w.id},world);
+}
+function opPoints(o){
+  const w = find(S.walls,o.wall); if(!w) return null; const g = geom(w);
+  const px = w.x1 + g.ux*o.c, py = w.y1 + g.uy*o.c; return {w,g,px,py};
+}
+function drawOpening(o){
+  const P = opPoints(o); if(!P) return; const {w,g,px,py} = P; const h = o.w/2, t = w.t;
+  const A = [px-g.ux*h, py-g.uy*h], B = [px+g.ux*h, py+g.uy*h];
+  const grp = el('g',{'data-t':'op','data-id':o.id,style:'cursor:move'},world);
+  el('line',{x1:A[0],y1:A[1],x2:B[0],y2:B[1],'stroke-width':t+1.5,class:'gap'},grp);
+  const off = (p,s) => [p[0]+g.nx*s, p[1]+g.ny*s];
+  if(o.type==='window'){
+    const q=[off(A,t/2),off(B,t/2),off(B,-t/2),off(A,-t/2)];
+    el('polygon',{points:q.map(p=>p.join(',')).join(' '),class:'opfill'},grp);
+    el('line',{x1:A[0],y1:A[1],x2:B[0],y2:B[1],class:'op'},grp);
+  } else if(o.type==='slide'){
+    const m1=[px+g.ux*h*0.1,py+g.uy*h*0.1], m2=[px-g.ux*h*0.1,py-g.uy*h*0.1];
+    el('line',{x1:off(A,t/5)[0],y1:off(A,t/5)[1],x2:off(m1,t/5)[0],y2:off(m1,t/5)[1],class:'op','stroke-width':2.2},grp);
+    el('line',{x1:off(m2,-t/5)[0],y1:off(m2,-t/5)[1],x2:off(B,-t/5)[0],y2:off(B,-t/5)[1],class:'op','stroke-width':2.2},grp);
+  } else {
+    const leaves = o.type==='double' ? [[A,h,px,py,1],[B,h,px,py,-1]] : [[o.flip?B:A, o.w, ...(o.flip?A:B), 0]];
+    leaves.forEach(([H,r,jx,jy]) => {
+      const E = [H[0]+g.nx*o.side*r, H[1]+g.ny*o.side*r];
+      const cross = (E[0]-H[0])*(jy-H[1]) - (E[1]-H[1])*(jx-H[0]);
+      el('line',{x1:H[0],y1:H[1],x2:E[0],y2:E[1],class:'op','stroke-width':1.6},grp);
+      el('path',{d:`M${E[0]} ${E[1]} A${r} ${r} 0 0 ${cross>0?1:0} ${jx} ${jy}`,class:'op','stroke-width':.8,'stroke-dasharray':'2 2'},grp);
+    });
+  }
+  el('line',{x1:A[0],y1:A[1],x2:B[0],y2:B[1],'stroke-width':Math.max(t+6,16/view.k),stroke:'transparent'},grp);
+}
+function drawItem(it){
+  const g = el('g',{transform:`translate(${it.x} ${it.y}) rotate(${it.rot})`,'data-t':'item','data-id':it.id,style:'cursor:move'},world);
+  const w=it.w, h=it.h, x=-w/2, y=-h/2;
+  const R = (cls,extra) => el('rect',Object.assign({x,y,width:w,height:h,class:cls},extra||{}),g);
+  switch(it.kind){
+    case 'terrasse': R('terr'); break;
+    case 'trapp': { R('furn'); const n = Math.max(3, Math.round(Math.max(w,h)/ toU(25)));
+      for(let i=1;i<n;i++){ if(w>=h){ const xx=x+w*i/n; el('line',{x1:xx,y1:y,x2:xx,y2:y+h,class:'furnl'},g);} else { const yy=y+h*i/n; el('line',{x1:x,y1:yy,x2:x+w,y2:yy,class:'furnl'},g);} }
+      if(w>=h) el('path',{d:`M${x+4} 0 H${x+w-6} m-4 -3 l4 3 l-4 3`,class:'furnl'},g); else el('path',{d:`M0 ${y+4} V${y+h-6} m-3 -4 l3 4 l3 -4`,class:'furnl'},g);
+      break; }
+    case 'komfyr': { R('furn'); const r=Math.min(w,h)/7; [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([a,b])=>el('circle',{cx:a*w/4,cy:b*h/4,r,class:'furnl',fill:'var(--furn)'},g)); break; }
+    case 'kum': { R('furn'); el('rect',{x:x+2,y:y+2,width:w-4,height:h-4,rx:3,class:'furnl'},g); el('circle',{cx:0,cy:0,r:1.2,fill:'var(--furn)'},g); break; }
+    case 'kjoleskap': { R('furn'); el('line',{x1:x,y1:y,x2:x+w,y2:y+h,class:'furnl'},g); el('line',{x1:x+w,y1:y,x2:x,y2:y+h,class:'furnl'},g); break; }
+    case 'peis': { R('furn',{'stroke-width':2.5}); el('rect',{x:x+w*.25,y:y+h*.25,width:w*.5,height:h*.5,fill:'var(--furn)'},g); break; }
+    case 'pipe': { R('furn'); const s=Math.min(w,h)*.32; el('path',{d:`M${-s} 0H${s}M0 ${-s}V${s}M${-s*.7} ${-s*.7}L${s*.7} ${s*.7}M${s*.7} ${-s*.7}L${-s*.7} ${s*.7}`,class:'furnl','stroke-width':1.4},g); break; }
+    case 'seng': { R('furn'); el('rect',{x:x+3,y:y+3,width:w-6,height:Math.min(h*.18,toU(45)),rx:2,class:'furnl'},g); el('line',{x1:x,y1:y+h*.32,x2:x+w,y2:y+h*.32,class:'furnl'},g); break; }
+    case 'sofa': { R('furn',{rx:3}); const d=Math.min(h*.3,toU(25)); el('rect',{x:x+d,y:y+d,width:w-2*d,height:h-d,class:'furnl'},g); break; }
+    case 'bord': { R('furn',{rx:Math.min(w,h)*.15}); break; }
+    default: { R('furn'); }
+  }
+  if(it.kind==='benk'){ el('line',{x1:x+3,y1:y+h-3,x2:x+w-3,y2:y+h-3,class:'furnl','stroke-dasharray':'2 2'},g); }
+}
+function dimGeom(d){ const dx=d.x2-d.x1, dy=d.y2-d.y1, L=Math.hypot(dx,dy)||1e-6; const ux=dx/L, uy=dy/L, nx=-uy, ny=ux;
+  return {L,ux,uy,nx,ny,a:[d.x1+nx*d.off,d.y1+ny*d.off],b:[d.x2+nx*d.off,d.y2+ny*d.off]}; }
+function drawDim(d){
+  const G=dimGeom(d), isSel = sel&&sel.type==='dim'&&sel.id===d.id; const k=1/view.k, cls='dimln'+(isSel?' dimsel':'');
+  const g=el('g',{'data-t':'dim','data-id':d.id,style:'cursor:move'},world); const sg=Math.sign(d.off)||1;
+  if(Math.abs(d.off)>1){ [[d.x1,d.y1,G.a],[d.x2,d.y2,G.b]].forEach(([x,y,q])=>el('line',{x1:x+G.nx*sg*2,y1:y+G.ny*sg*2,x2:q[0]+G.nx*sg*3,y2:q[1]+G.ny*sg*3,class:cls},g)); }
+  el('line',{x1:G.a[0],y1:G.a[1],x2:G.b[0],y2:G.b[1],class:cls},g);
+  const t=3.5; [G.a,G.b].forEach(q=>el('line',{x1:q[0]-(G.ux+G.nx)*t,y1:q[1]-(G.uy+G.ny)*t,x2:q[0]+(G.ux+G.nx)*t,y2:q[1]+(G.uy+G.ny)*t,class:cls,'stroke-width':1.6},g));
+  let ang=Math.atan2(G.uy,G.ux)*180/Math.PI, flip=false; if(ang>90){ang-=180;flip=true;} if(ang<=-90){ang+=180;flip=true;}
+  const up = flip?-1:1; const mx=(G.a[0]+G.b[0])/2 - G.nx*up*5, my=(G.a[1]+G.b[1])/2 - G.ny*up*5;
+  const fs=Math.min(14,Math.max(8,9*Math.min(1.6,k)));
+  el('text',{x:mx,y:my,'text-anchor':'middle','dominant-baseline':'central',class:'dimtx'+(isSel?' dimsel':''),'font-size':fs,transform:`rotate(${ang} ${mx} ${my})`},g).textContent=ufmt(G.L);
+  el('line',{x1:G.a[0],y1:G.a[1],x2:G.b[0],y2:G.b[1],stroke:'transparent','stroke-width':14*k},g);
+}
+function drawLabel(l){
+  el('text',{x:l.x,y:l.y,'text-anchor':'middle','dominant-baseline':'middle',class:'lbl','data-t':'label','data-id':l.id},world).textContent = l.text;
+}
+function drawSelection(){
+  if(!sel) return; const o = find(byType(sel.type), sel.id); if(!o) return;
+  if(sel.type==='wall'){
+    el('line',{x1:o.x1,y1:o.y1,x2:o.x2,y2:o.y2,'stroke-width':o.t+4,class:'selwall'},world);
+    const g = geom(o), mx=(o.x1+o.x2)/2, my=(o.y1+o.y2)/2, d = o.t/2+12/view.k;
+    dimText(mx+g.nx*d, my+g.ny*d, ulab(g.L), g);
+    [[o.x1,o.y1,1],[o.x2,o.y2,2]].forEach(([x,y,e])=>el('circle',{cx:x,cy:y,r:7/view.k,class:'handle','stroke-width':2/view.k,'data-t':'end','data-id':o.id,'data-e':e},world));
+  } else if(sel.type==='op'){
+    const P = opPoints(o); if(!P) return; const {w,g,px,py} = P; const h=o.w/2;
+    el('line',{x1:px-g.ux*h,y1:py-g.uy*h,x2:px+g.ux*h,y2:py+g.uy*h,'stroke-width':w.t+6,class:'selwall'},world);
+    const d = w.t/2+12/view.k, e1 = endOff(w,1), e2 = endOff(w,2), a = o.c-h-e1, b = g.L-o.c-h-e2;
+    dimText(w.x1+g.ux*(e1+a/2)+g.nx*d, w.y1+g.uy*(e1+a/2)+g.ny*d, ufmt(a), g);
+    dimText(w.x2-g.ux*(e2+b/2)+g.nx*d, w.y2-g.uy*(e2+b/2)+g.ny*d, ufmt(b), g);
+    const rc = o.from==='B' ? g.L-e2 : e1;
+    el('circle',{cx:w.x1+g.ux*rc,cy:w.y1+g.uy*rc,r:5/view.k,class:'draftst','stroke-width':2/view.k},world);
+    dimText(px-g.nx*d, py-g.ny*d, 'b '+ufmt(o.w), g);
+  } else if(sel.type==='item'){
+    const rot = ((o.rot%180)+180)%180===90; const w = rot?o.h:o.w, h = rot?o.w:o.h;
+    el('rect',{x:o.x-w/2-3,y:o.y-h/2-3,width:w+6,height:h+6,class:'selbox','stroke-width':1.5/view.k},world);
+    dimText(o.x, o.y-h/2-10/view.k, ufmt(o.w)+' × '+ufmt(o.h), null);
+  } else if(sel.type==='dim'){
+    [[sel.id,1],[sel.id,2]].forEach(([id,e])=>{ const G=dimGeom(o); const q=e===1?G.a:G.b; el('circle',{cx:q[0],cy:q[1],r:6/view.k,class:'handle','stroke-width':2/view.k,'data-t':'dend','data-id':id,'data-e':e},world); });
+  } else if(sel.type==='label'){
+    const len = o.text.length*6.5+10; el('rect',{x:o.x-len/2,y:o.y-10,width:len,height:20,class:'selbox','stroke-width':1.5/view.k},world);
+  }
+}
+function drawMeasure(){
+  if(!measure) return; const m=measure; const dx=m.x2-m.x1, dy=m.y2-m.y1, L=Math.hypot(dx,dy); if(L<.5) return;
+  const g=el('g',{'pointer-events':'none'},world); const k=1/view.k; const nx=-dy/L*5*k, ny=dx/L*5*k;
+  el('line',{x1:m.x1,y1:m.y1,x2:m.x2,y2:m.y2,class:'meas','stroke-width':1.5*k},g);
+  [[m.x1,m.y1],[m.x2,m.y2]].forEach(([x,y])=>{ el('line',{x1:x-nx,y1:y-ny,x2:x+nx,y2:y+ny,class:'meas','stroke-width':1.5*k},g); el('circle',{cx:x,cy:y,r:2.5*k,fill:'var(--accent)'},g); });
+  const txt = ulab(L), mx=(m.x1+m.x2)/2, my=(m.y1+m.y2)/2; const fs=12*k, tw=txt.length*fs*.62+8*k, th=fs+6*k;
+  el('rect',{x:mx-tw/2,y:my-th/2,width:tw,height:th,rx:3*k,class:'measbg','stroke-width':k},g);
+  el('text',{x:mx,y:my,'text-anchor':'middle','dominant-baseline':'central',class:'meast',style:'font-size:'+fs+'px'},g).textContent=txt;
+}
+function measureSnap(x,y){ // endepunkt → veggflate → rutenett
+  const tol=9/view.k; const e=snapPoint(x,y); if(e.snapped) return e;
+  let best=null; S.walls.forEach(w=>{ const g=geom(w); const c=Math.max(0,Math.min(g.L,(x-w.x1)*g.ux+(y-w.y1)*g.uy));
+    [w.t/2,-w.t/2].forEach(o=>{ const px=w.x1+g.ux*c+g.nx*o, py=w.y1+g.uy*c+g.ny*o; const d=Math.hypot(px-x,py-y); if(d<tol&&(!best||d<best.d)) best={x:px,y:py,d}; }); });
+  return best?{x:best.x,y:best.y,snapped:true}:{x:snapU(x),y:snapU(y),snapped:false};
+}
+function dimText(x,y,txt,g){
+  let ang = 0; if(g){ ang = Math.atan2(g.uy,g.ux)*180/Math.PI; if(ang>90) ang-=180; if(ang<-90) ang+=180; }
+  const s = Math.min(1.6, Math.max(.8, 1/view.k));
+  el('text',{x,y,class:'dim','text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${ang} ${x} ${y})`,'font-size':9*s},world).textContent = txt;
+}
+
+// ---------- properties panel ----------
+const KIND = {benk:'Kjøkkenbenk',komfyr:'Komfyr',kum:'Kum',kjoleskap:'Kjøleskap',seng:'Seng',sofa:'Sofa',bord:'Bord',trapp:'Trapp',peis:'Peis',pipe:'Pipe',terrasse:'Terrasse'};
+const OPT = {window:'Vindu',door:'Dør',double:'Dobbeldør',slide:'Skyvedør'};
+function renderProps(){
+  const p = $('props'); const active = document.activeElement; const keepId = active && p.contains(active) ? active.id : null;
+  if(keepId && active.tagName==='INPUT' && active.type!=='checkbox') return; // don't rebuild while typing
+  p.textContent = '';
+  if(draft){ renderDraft(p); return; }
+  if(!sel && mode==='measure' && measure && Math.hypot(measure.x2-measure.x1,measure.y2-measure.y1)>.5){
+    p.innerHTML = `<p class="sel-title">Måling ${ulab(Math.hypot(measure.x2-measure.x1,measure.y2-measure.y1))}</p><div class="btns"><button id="pKeep">Sett ut som mål</button></div>`;
+    $('pKeep').onclick=()=>keepMeasure(); return;
+  }
+  if(!sel){
+    p.innerHTML = `<h2>Valgt</h2><p class="muted">Trykk på en vegg, et vindu, en dør eller et møbel for å flytte eller endre det. Dra i tomt område for å panorere, bruk hjul eller to fingre for å zoome.</p>
+    <p class="muted">Vinduer og dører følger veggen de står i. Dra dem over til en annen vegg for å flytte dem dit.</p>`;
+    return;
+  }
+  const o = find(byType(sel.type), sel.id); if(!o) return;
+  const h = s => p.insertAdjacentHTML('beforeend', s);
+  if(sel.type==='wall'){
+    const g = geom(o);
+    h(`<p class="sel-title">Vegg</p>
+      <div class="row"><label for="pLen">Lengde (${unit})</label><input id="pLen" type="number" step="${ustep()}" value="${inVal(g.L)}"></div>
+      <div class="row"><label for="pT">Tykkelse (${unit})</label><input id="pT" type="number" step="${ustep()}" value="${inVal(o.t)}"></div>
+      <p class="muted">Dra endepunktene for å endre veggen. Tilkoblede vegger følger med.</p>
+      <div class="btns"><button id="pDel" class="danger">Slett vegg</button><button id="pSplit">Del i to</button><button id="pDimW">Sett ut mål</button></div>
+      ${isScan()?`<div class="calib"><p class="muted">Målestokken er anslått fra skanningen. Kjenner du det riktige målet på denne veggen, skriv det inn så justeres alle mål.</p>
+      <div class="row"><label for="pCal">Riktig mål (${unit})</label><input id="pCal" type="number" step="${ustep()}" placeholder="${inVal(g.L)}"></div>
+      <div class="btns"><button id="pCalGo">Bruk som målestokk</button></div></div>`:''}`);
+    $('pLen').onchange = e => { const v = fromIn(+e.target.value); if(!(v>1)) return; mutate(()=>setWallLen(o,v)); };
+    $('pT').onchange = e => { const v = fromIn(+e.target.value); if(!(v>0)) return; mutate(()=>{ o.t = v; }); };
+    $('pDel').onclick = () => mutate(()=>{ S.walls = S.walls.filter(w=>w!==o); S.openings = S.openings.filter(x=>x.wall!==o.id); sel=null; });
+    $('pSplit').onclick = () => mutate(()=>{ const mx=(o.x1+o.x2)/2,my=(o.y1+o.y2)/2; const nw = {id:nid('w'),x1:mx,y1:my,x2:o.x2,y2:o.y2,t:o.t}; const half=g.L/2;
+      S.openings.forEach(op=>{ if(op.wall===o.id && op.c>half){ op.wall=nw.id; op.c-=half; } }); o.x2=mx; o.y2=my; S.walls.push(nw); clampOps(o); clampOps(nw); });
+    $('pDimW').onclick = () => mutate(()=>{ const cx=avgX(), cy=avgY(); const mx=(o.x1+o.x2)/2, my=(o.y1+o.y2)/2; const sgn = ((mx-cx)*g.nx+(my-cy)*g.ny)>=0?1:-1;
+      const d={id:nid('d'),x1:o.x1,y1:o.y1,x2:o.x2,y2:o.y2,off:sgn*(o.t/2+toU(50))}; S.dims.push(d); sel={type:'dim',id:d.id}; });
+    if($('pCalGo')) $('pCalGo').onclick = () => { const v=+$('pCal').value; if(!(v>0)) { toast('Skriv inn riktig mål i '+unit); return; } mutate(()=>{ S.scale = (v/UF[unit]) / g.L; }); toast('Målestokk oppdatert'); };
+  } else if(sel.type==='op'){
+    if(opTgtFor!==o.id){ opTgtFor = o.id; opTgt = 'pos'; }
+    h(`<p class="sel-title">${OPT[o.type]}</p>
+      <div class="row"><label for="pType">Type</label><select id="pType">${Object.entries(OPT).map(([k,v])=>`<option value="${k}"${k===o.type?' selected':''}>${v}</option>`).join('')}</select></div>
+      <div class="row"><label for="pW">Bredde (${unit})</label><input id="pW" type="number" step="${ustep()}" value="${inVal(o.w)}"></div>
+      <div class="row"><label>Mål fra hjørne</label><div class="seg"><button data-from="A" aria-pressed="${o.from!=='B'}">Start</button><button data-from="B" aria-pressed="${o.from==='B'}">Slutt</button></div></div>
+      <div class="row"><label for="pPos">Fra hjørnet (${unit})</label><input id="pPos" type="number" step="${ustep()}" value="${inVal(fromCorner(o))}"></div>
+      <p class="muted">Avstanden er innvendig fra hjørnet med ringen til kanten av åpningen.</p>
+      ${api()?`<div class="row"><label>Neste måling</label><div class="seg"><button data-tg="pos" aria-pressed="${opTgt==='pos'}">Avstand</button><button data-tg="w" aria-pressed="${opTgt==='w'}">Bredde</button></div></div>`:''}
+      ${o.type==='door'||o.type==='double'?`<div class="btns">${o.type==='door'?'<button id="pFlip">Bytt hengsleside</button>':''}<button id="pSide">Slå andre veien</button></div>`:''}
+      <div class="btns"><button id="pDel" class="danger">Slett</button></div>`);
+    $('pType').onchange = e => mutate(()=>{ o.type = e.target.value; });
+    $('pW').onchange = e => { const v=fromIn(+e.target.value); if(!(v>1)) return; mutate(()=>setOpWidth(o,v)); };
+    $('pPos').onchange = e => mutate(()=>setFromCorner(o, fromIn(+e.target.value)));
+    p.querySelectorAll('[data-from]').forEach(b=>b.onclick=()=>mutate(()=>{ o.from=b.dataset.from; }));
+    p.querySelectorAll('[data-tg]').forEach(b=>b.onclick=()=>{ opTgt=b.dataset.tg; render(); });
+    if($('pFlip')) $('pFlip').onclick = () => mutate(()=>{ o.flip=!o.flip; });
+    if($('pSide')) $('pSide').onclick = () => mutate(()=>{ o.side = -o.side; });
+    $('pDel').onclick = () => mutate(()=>{ S.openings = S.openings.filter(x=>x!==o); sel=null; });
+  } else if(sel.type==='item'){
+    h(`<p class="sel-title">${KIND[o.kind]||o.kind}</p>
+      <div class="row"><label for="pW">Bredde (${unit})</label><input id="pW" type="number" step="${ustep()}" value="${inVal(o.w)}"></div>
+      <div class="row"><label for="pH">Dybde (${unit})</label><input id="pH" type="number" step="${ustep()}" value="${inVal(o.h)}"></div>
+      <div class="btns"><button id="pRot">Roter 90°</button><button id="pDup">Dupliser</button><button id="pDel" class="danger">Slett</button></div>`);
+    $('pW').onchange = e => { const v=fromIn(+e.target.value); if(v>0) mutate(()=>{ o.w=v; }); };
+    $('pH').onchange = e => { const v=fromIn(+e.target.value); if(v>0) mutate(()=>{ o.h=v; }); };
+    $('pRot').onclick = () => mutate(()=>{ o.rot = (o.rot+90)%360; });
+    $('pDup').onclick = () => mutate(()=>{ const c = Object.assign({},o,{id:nid('i'),x:o.x+15,y:o.y+15}); S.items.push(c); sel={type:'item',id:c.id}; });
+    $('pDel').onclick = () => mutate(()=>{ S.items = S.items.filter(x=>x!==o); sel=null; });
+  } else if(sel.type==='dim'){
+    const G=dimGeom(o);
+    h(`<p class="sel-title">Mål ${ulab(G.L)}</p>
+      <div class="row"><label for="pOff">Avstand ut (${unit})</label><input id="pOff" type="number" step="${ustep()}" value="${inVal(o.off)}"></div>
+      <p class="muted">Dra mållinja for å flytte den ut fra det som er målt. Dra endepunktene for å flytte målepunktene.</p>
+      <div class="btns"><button id="pFlipD">Til andre siden</button><button id="pDel" class="danger">Slett mål</button></div>`);
+    $('pOff').onchange=e=>mutate(()=>{ o.off=fromIn(+e.target.value); });
+    $('pFlipD').onclick=()=>mutate(()=>{ o.off=-o.off; });
+    $('pDel').onclick=()=>mutate(()=>{ S.dims=S.dims.filter(x=>x!==o); sel=null; });
+  } else if(sel.type==='label'){
+    h(`<p class="sel-title">Tekst</p>
+      <div class="row"><label for="pTxt">Tekst</label><input id="pTxt" type="text" value=""></div>
+      <div class="btns"><button id="pDel" class="danger">Slett</button></div>`);
+    $('pTxt').value = o.text;
+    $('pTxt').onchange = e => mutate(()=>{ o.text = e.target.value || 'Rom'; });
+    $('pDel').onclick = () => mutate(()=>{ S.labels = S.labels.filter(x=>x!==o); sel=null; });
+  }
+  if(keepId && $(keepId)) $(keepId).focus();
+}
+function avgX(){ let s=0,n=0; S.walls.forEach(w=>{s+=w.x1+w.x2;n+=2;}); return n?s/n:0; }
+function avgY(){ let s=0,n=0; S.walls.forEach(w=>{s+=w.y1+w.y2;n+=2;}); return n?s/n:0; }
+function keepMeasure(){ if(!measure) return; mutate(()=>{ const d={id:nid('d'),x1:measure.x1,y1:measure.y1,x2:measure.x2,y2:measure.y2,off:0}; S.dims.push(d); measure=null; sel={type:'dim',id:d.id}; }); setMode('select'); toast('Mål satt ut – dra det dit du vil ha det'); render(); }
+function setWallLen(o,v){ const g=geom(o); const ends=linked(o); o.x2=o.x1+g.ux*v; o.y2=o.y1+g.uy*v; ends[2].forEach(([ww,ee])=>setEnd(ww,ee,o.x2,o.y2)); clampOps(o); }
+function clampOp(o){ const w=find(S.walls,o.wall); if(!w) return; const L=geom(w).L; o.w=Math.min(o.w, L); o.c=Math.min(Math.max(o.c,o.w/2), L-o.w/2); }
+function clampOps(w){ S.openings.forEach(o=>{ if(o.wall===w.id) clampOp(o); }); }
+function setEnd(w,e,x,y){ if(e===1){ w.x1=x; w.y1=y; } else { w.x2=x; w.y2=y; } }
+function linked(w){ // other wall ends coincident with this wall's ends
+  const r = {1:[],2:[]}; const tol = 1.5;
+  S.walls.forEach(o=>{ if(o===w) return; [[1,o.x1,o.y1],[2,o.x2,o.y2]].forEach(([e,x,y])=>{
+    if(Math.hypot(x-w.x1,y-w.y1)<tol) r[1].push([o,e]); else if(Math.hypot(x-w.x2,y-w.y2)<tol) r[2].push([o,e]); }); });
+  return r;
+}
+
+// ---------- mål rom med laser ----------
+const DKEY = KEY + '-rom';
+const CLOSE_TOL = 5; // cm: rommet regnes som lukket når enden er så nær starten
+let draft = null;   // romopptak som pågår (lengder i cm, startpunkt i tegningsenheter)
+let hover = null;   // forhåndsvisning av startpunkt
+let cancelArm = false;
+let opTgt = 'pos', opTgtFor = null; // hva neste måling setter på valgt vindu/dør
+try{ const d = JSON.parse(localStorage.getItem(DKEY) || 'null'); if(d && d.rows && d.rows.length) draft = d; }catch(e){}
+const isScan = () => S.scan !== false;
+function blankPlan(){ uid = 1; return {v:1, scale:2.5, name:'Ny tegning', scan:false, walls:[], openings:[], items:[], labels:[], dims:[], uid:1}; }
+function saveDraft(){ try{ if(draft) localStorage.setItem(DKEY, JSON.stringify(draft)); else localStorage.removeItem(DKEY); }catch(e){} }
+function newRow(prev){ return {len:null, turn: prev && prev.turn==='L' ? 'L' : 'R', ang:90, t:null, diag:null, exist:null}; }
+const norm360 = a => ((a % 360) + 360) % 360;
+const cIn = c => (c==null || c==='') ? '' : +(c*UF[unit]).toFixed(UD[unit]+1);
+const cFrom = v => v / UF[unit];
+const DIRS = [[0,'→','Høyre'],[90,'↓','Ned'],[180,'←','Venstre'],[270,'↑','Opp']];
+const TURN = {R:['↱','Sving høyre 90°'], L:['↰','Sving venstre 90°'], S:['↑','Rett fram'], A:['∠','Annen vinkel']};
+function dirIcon(d){ const n = norm360(Math.round(d)); const f = DIRS.find(x => x[0]===n); return f ? f[1] : '∠'; }
+
+function startRoom(at){
+  draft = {x:at.x, y:at.y, name:'', t:10, rows:[Object.assign(newRow(), {dir: norm360(at.dir||0)})], act:0, field:'len', dims:true};
+  cancelArm = false; saveDraft(); setMode('select'); sel = null; render(); fit();
+  toast('Mål første vegg');
+}
+function roomButton(){
+  if(draft){ toast('Gjør ferdig eller avbryt rommet du holder på med'); return; }
+  if(mode==='roomstart'){ setMode('select'); render(); return; }
+  if(!S.walls.length){ startRoom({x:0, y:0, dir:0}); return; }
+  setMode('roomstart'); render();
+}
+
+// Hjørnepunkter langs innerveggen ut fra lengder, svinger og eventuelle diagonaler.
+function draftGeo(d){
+  const pts = [{x:d.x, y:d.y}], heads = [], info = []; let h = 0, x = d.x, y = d.y;
+  for(let i=0; i<d.rows.length; i++){
+    const r = d.rows[i]; let dev = 0, th = null, bad = false;
+    if(i===0) h = +r.dir || 0;
+    else {
+      dev = r.turn==='R' ? 90 : r.turn==='L' ? -90 : r.turn==='S' ? 0 : (+r.ang || 0);
+      const a = d.rows[i-1].len, b = r.len, c = r.diag;
+      if(r.turn!=='S' && c>0 && a>0 && b>0){ // cosinussetningen gir vinkelen mellom veggene
+        const cs = (a*a + b*b - c*c) / (2*a*b);
+        if(cs>=-1 && cs<=1){ th = Math.acos(cs)*180/Math.PI; dev = (dev<0 ? -1 : 1) * (180 - th); } else bad = true;
+      }
+      h += dev;
+    }
+    heads.push(h); info.push({th, bad, dev});
+    if(!(r.len > 0)) break;
+    const L = toU(r.len), rad = h*Math.PI/180; x += Math.cos(rad)*L; y += Math.sin(rad)*L; pts.push({x, y});
+  }
+  return {pts, heads, info};
+}
+// Vegg som allerede ligger langs denne innerflaten (for rom inntil et rom som er tegnet).
+function edgeOnWall(p, q){
+  const L = Math.hypot(q.x-p.x, q.y-p.y); if(L < 1e-6) return null;
+  const ux = (q.x-p.x)/L, uy = (q.y-p.y)/L, mx = (p.x+q.x)/2, my = (p.y+q.y)/2, tol = toU(3);
+  let best = null;
+  S.walls.forEach(w => { const g = geom(w);
+    if(Math.abs(ux*g.uy - uy*g.ux) > 0.03) return;
+    const cp = (p.x-w.x1)*g.ux + (p.y-w.y1)*g.uy, cq = (q.x-w.x1)*g.ux + (q.y-w.y1)*g.uy;
+    if(Math.min(cp,cq) < -w.t || Math.max(cp,cq) > g.L + w.t) return;
+    const e = Math.abs(Math.abs((mx-w.x1)*g.nx + (my-w.y1)*g.ny) - w.t/2);
+    if(e < tol && (!best || e < best.e)) best = {w, e}; });
+  return best && best.w;
+}
+function rowExist(k, P){ const r = draft.rows[k]; if(r.exist===true) return true; if(r.exist===false || !P[k+1]) return false; return !!edgeOnWall(P[k], P[k+1]); }
+// how = 'adj': avviket fordeles på veggene.  how = 'wall': siste vegg beregnes fra enden tilbake til start.
+function draftClosed(d, how){
+  const P = draftGeo(d).pts, n = P.length-1; if(n<2 || (how==='adj' && n<3)) return null;
+  const gx = P[n].x-P[0].x, gy = P[n].y-P[0].y; let V, R;
+  if(how==='adj'){
+    let tot = 0; const cum = [0];
+    for(let k=1; k<=n; k++){ tot += Math.hypot(P[k].x-P[k-1].x, P[k].y-P[k-1].y); cum.push(tot); }
+    V = P.slice(0,n).map((p,k) => ({x:p.x - gx*cum[k]/tot, y:p.y - gy*cum[k]/tot})); R = d.rows.slice(0,n);
+  } else { V = P.slice(); R = d.rows.slice(0,n).concat([{t:null, exist:null}]); }
+  const m = V.length;
+  const E = R.map((r,k) => { const p = V[k], q = V[(k+1)%m]; const w = r.exist===false ? null : edgeOnWall(p,q);
+    const ex = r.exist===true || (r.exist==null && !!w); return {t: ex && w ? w.t : toU(r.t>0 ? r.t : d.t), exist:ex}; });
+  return {V, E, gap: Math.hypot(gx,gy)*S.scale};
+}
+function polyInfo(V){
+  let A = 0, cx = 0, cy = 0; const m = V.length;
+  for(let k=0; k<m; k++){ const p = V[k], q = V[(k+1)%m], c = p.x*q.y - q.x*p.y; A += c; cx += (p.x+q.x)*c; cy += (p.y+q.y)*c; }
+  A /= 2; if(Math.abs(A) < 1e-9) return {A:0, cx:V[0].x, cy:V[0].y};
+  return {A, cx:cx/(6*A), cy:cy/(6*A)};
+}
+// Senterlinjene til veggene: innerflaten flyttes ut med halv veggtykkelse, nabolinjene skjæres.
+function polyWalls(V, E, A){
+  const m = V.length, s = A > 0 ? -1 : 1;
+  const lines = V.map((p,k) => { const q = V[(k+1)%m], dx = q.x-p.x, dy = q.y-p.y, L = Math.hypot(dx,dy) || 1e-6, ux = dx/L, uy = dy/L;
+    const o = E[k].t/2; return {px:p.x + s*(-uy)*o, py:p.y + s*ux*o, ux, uy}; });
+  return V.map((p,k) => { const a = lines[(k-1+m)%m], b = lines[k], den = a.ux*b.uy - a.uy*b.ux;
+    if(Math.abs(den) < 1e-6) return {x:b.px, y:b.py};
+    const t = ((b.px-a.px)*b.uy - (b.py-a.py)*b.ux) / den; return {x:a.px + a.ux*t, y:a.py + a.uy*t}; });
+}
+function finishRoom(how){
+  const C = draftClosed(draft, how); if(!C){ toast('Mål minst tre vegger først'); return; }
+  const pi = polyInfo(C.V), W = polyWalls(C.V, C.E, pi.A), m = C.V.length, name = (draft.name||'').trim(), dims = draft.dims;
+  mutate(() => {
+    for(let k=0; k<m; k++){ if(C.E[k].exist) continue; const a = W[k], b = W[(k+1)%m];
+      S.walls.push({id:nid('w'), x1:a.x, y1:a.y, x2:b.x, y2:b.y, t:C.E[k].t}); }
+    if(dims){ const off = (pi.A > 0 ? 1 : -1) * toU(30);
+      for(let k=0; k<m; k++){ const p = C.V[k], q = C.V[(k+1)%m]; S.dims.push({id:nid('d'), x1:p.x, y1:p.y, x2:q.x, y2:q.y, off}); } }
+    if(name) S.labels.push({id:nid('l'), text:name, x:pi.cx, y:pi.cy});
+    sel = null;
+  });
+  const area = Math.abs(pi.A)*S.scale*S.scale/10000;
+  draft = null; saveDraft(); render();
+  toast((name || 'Rommet') + ' lagt til · ' + area.toFixed(2).replace('.',',') + ' m²');
+}
+function deleteRow(k){
+  const d = draft, G = draftGeo(d), P = G.pts;
+  if(k===0){ if(d.rows.length < 2) return; if(d.rows[0].len > 0 && P[1]){ d.x = P[1].x; d.y = P[1].y; } d.rows[1].dir = norm360(G.heads[1] ?? 0); }
+  d.rows.splice(k, 1);
+  if(!d.rows.length || d.rows[d.rows.length-1].len > 0) d.rows.push(newRow(d.rows[d.rows.length-1]));
+  d.act = Math.min(k, d.rows.length-1); d.field = 'len';
+}
+function draftMeasure(c){
+  const d = draft, i = Math.min(d.act, d.rows.length-1), r = d.rows[i];
+  const a = document.activeElement; if(a && $('props').contains(a) && a.blur) a.blur();
+  if(d.field==='diag' && i>0 && r.turn!=='S'){ r.diag = c; d.field = 'len'; toast('Diagonal ' + fmtMeas(c)); }
+  else { r.len = c; if(i===d.rows.length-1) d.rows.push(newRow(r)); d.act = i+1; d.field = 'len'; toast('Vegg ' + (i+1) + ': ' + fmtMeas(c)); }
+  saveDraft(); render(); keepInView();
+}
+function keepInView(){
+  if(!draft) return; const P = draftGeo(draft).pts, e = P[P.length-1], r = svg.getBoundingClientRect();
+  const sx = e.x*view.k + view.tx, sy = e.y*view.k + view.ty;
+  if(sx < 40 || sy < 40 || sx > r.width-40 || sy > r.height-40) fit();
+}
+// Innvendige hjørner der to vegger møtes, med retning langs veggen og rommet på høyre side.
+function segDist(x, y, w){ const g = geom(w); const c = Math.max(0, Math.min(g.L, (x-w.x1)*g.ux + (y-w.y1)*g.uy)); return Math.hypot(x-(w.x1+g.ux*c), y-(w.y1+g.uy*c)); }
+function faceCorners(){
+  const out = [], W = S.walls;
+  for(let i=0; i<W.length; i++) for(let j=i+1; j<W.length; j++){
+    const a = W[i], b = W[j], ga = geom(a), gb = geom(b), den = ga.ux*gb.uy - ga.uy*gb.ux; if(Math.abs(den) < 0.05) continue;
+    for(const sa of [1,-1]) for(const sb of [1,-1]){
+      const ax = a.x1 + ga.nx*sa*a.t/2, ay = a.y1 + ga.ny*sa*a.t/2, bx = b.x1 + gb.nx*sb*b.t/2, by = b.y1 + gb.ny*sb*b.t/2;
+      const t = ((bx-ax)*gb.uy - (by-ay)*gb.ux) / den, x = ax + ga.ux*t, y = ay + ga.uy*t;
+      if(segDist(x,y,a) > a.t/2 + 0.5 || segDist(x,y,b) > b.t/2 + 0.5) continue;
+      let dv = {x:ga.ux*sa, y:ga.uy*sa}; if(dv.x*gb.nx*sb + dv.y*gb.ny*sb <= 0) dv = {x:gb.ux*sb, y:gb.uy*sb};
+      out.push({x, y, dir:Math.round(norm360(Math.atan2(dv.y, dv.x)*180/Math.PI)*100)/100});
+    }
+  }
+  return out;
+}
+function roomSnap(x, y){
+  const tol = 12/view.k; let best = null;
+  faceCorners().forEach(c => { const d = Math.hypot(c.x-x, c.y-y); if(d < tol && (!best || d < best.d)) best = Object.assign({d}, c); });
+  if(best) return {x:best.x, y:best.y, dir:best.dir, corner:true};
+  const s = measureSnap(x, y); return {x:s.x, y:s.y, dir:0, corner:false};
+}
+function arrowHead(g, tx, ty, h, k){ const ax = Math.cos(h), ay = Math.sin(h), s = 8*k;
+  el('path', {d:`M${tx-ax*s-ay*s*.6} ${ty-ay*s+ax*s*.6} L${tx} ${ty} L${tx-ax*s+ay*s*.6} ${ty-ay*s-ax*s*.6}`, class:'draftf draftact', 'stroke-width':2*k}, g); }
+function tagText(g, x, y, txt, k){ const fs = 11*k, tw = txt.length*fs*.62 + 8*k, th = fs + 6*k;
+  el('rect', {x:x-tw/2, y:y-th/2, width:tw, height:th, rx:3*k, class:'measbg', 'stroke-width':k}, g);
+  el('text', {x, y, 'text-anchor':'middle', 'dominant-baseline':'central', class:'meast', style:'font-size:'+fs+'px'}, g).textContent = txt; }
+function drawDraft(){
+  if(!draft) return; const d = draft, G = draftGeo(d), P = G.pts, n = P.length-1, k = 1/view.k;
+  const g = el('g', {'pointer-events':'none'}, world);
+  if(n >= 2){
+    const gap = Math.hypot(P[n].x-P[0].x, P[n].y-P[0].y)*S.scale, C = draftClosed(d, n>=3 && gap<=CLOSE_TOL ? 'adj' : 'wall');
+    if(C){ const W = polyWalls(C.V, C.E, polyInfo(C.V).A), m = C.V.length;
+      for(let q=0; q<m; q++){ if(C.E[q].exist) continue; const a = W[q], b = W[(q+1)%m]; el('line', {x1:a.x, y1:a.y, x2:b.x, y2:b.y, 'stroke-width':C.E[q].t, class:'draftw'}, g); } }
+    el('line', {x1:P[n].x, y1:P[n].y, x2:P[0].x, y2:P[0].y, class:'draftc', 'stroke-width':1.5*k}, g);
+  }
+  if(n >= 1) el('polyline', {points:P.map(p => p.x+','+p.y).join(' '), class:'draftf', 'stroke-width':2*k}, g);
+  const ai = Math.min(d.act, d.rows.length-1);
+  if(ai < n) el('line', {x1:P[ai].x, y1:P[ai].y, x2:P[ai+1].x, y2:P[ai+1].y, class:'draftf draftact', 'stroke-width':3.5*k}, g);
+  for(let q=0; q<n; q++){ const a = P[q], b = P[q+1]; tagText(g, (a.x+b.x)/2, (a.y+b.y)/2, fmtMeasN(d.rows[q].len), k); }
+  el('circle', {cx:P[0].x, cy:P[0].y, r:5*k, class:'draftst', 'stroke-width':2*k}, g);
+  if(n < d.rows.length){ const h = G.heads[n]*Math.PI/180, L = 40*k, e = P[n], tx = e.x + Math.cos(h)*L, ty = e.y + Math.sin(h)*L;
+    el('line', {x1:e.x, y1:e.y, x2:tx, y2:ty, class:'draftf draftact', 'stroke-width':2*k}, g); arrowHead(g, tx, ty, h, k);
+    el('circle', {cx:e.x, cy:e.y, r:3.5*k, fill:'var(--sel)'}, g); }
+}
+function drawHover(){
+  if(mode!=='roomstart' || !hover) return; const k = 1/view.k, g = el('g', {'pointer-events':'none'}, world);
+  el('circle', {cx:hover.x, cy:hover.y, r:6*k, class:'draftst', 'stroke-width':2*k}, g);
+  if(hover.corner){ const h = hover.dir*Math.PI/180, L = 40*k, tx = hover.x + Math.cos(h)*L, ty = hover.y + Math.sin(h)*L;
+    el('line', {x1:hover.x, y1:hover.y, x2:tx, y2:ty, class:'draftf draftact', 'stroke-width':2*k}, g); arrowHead(g, tx, ty, h, k); }
+}
+function rowDetail(k, G){
+  const r = draft.rows[k], inf = G.info[k] || {}, P = G.pts, n = P.length-1;
+  let s = `<div class="rdet">
+    <div class="row"><label for="rLen">Lengde (${unit})</label><input id="rLen" type="number" step="${ustep()}" value="${cIn(r.len)}"${draft.field==='len'?' class="tgt"':''}></div>`;
+  if(k===0) s += `<div class="row"><label>Retning</label><div class="seg">${DIRS.map(([v,ic,lb]) => `<button data-dir="${v}" title="${lb}" aria-label="${lb}" aria-pressed="${norm360(r.dir||0)===v}">${ic}</button>`).join('')}</div></div>`;
+  else {
+    s += `<div class="row"><label>Sving</label><div class="seg">${Object.entries(TURN).map(([v,[ic,lb]]) => `<button data-turn="${v}" title="${lb}" aria-label="${lb}" aria-pressed="${r.turn===v}">${ic}</button>`).join('')}</div></div>`;
+    if(r.turn==='A') s += `<div class="row"><label for="rAng">Sving i grader</label><input id="rAng" type="number" step="0.1" value="${r.ang}"></div><p class="muted">Positivt tall svinger mot høyre, negativt mot venstre. 90 er rett vinkel.</p>`;
+    if(r.turn!=='S') s += `<div class="row"><label for="rDiag">Diagonal (${unit})</label><input id="rDiag" type="number" step="${ustep()}" value="${cIn(r.diag)}" placeholder="valgfri"${draft.field==='diag'?' class="tgt"':''}></div>
+      <p class="muted">${inf.bad ? '<span class="warn">Diagonalen passer ikke med de to veggene.</span>' : inf.th!=null ? 'Vinkel mellom veggene: ' + inf.th.toFixed(1).replace('.',',') + '°' : 'Vil du ha nøyaktig vinkel, trykk i feltet og mål fra starten av forrige vegg til slutten av denne.'}</p>`;
+  }
+  const ex = k < n ? rowExist(k, P) : r.exist===true;
+  s += `<div class="row"><label for="rT">Tykkelse (${unit})</label><input id="rT" type="number" step="${ustep()}" value="${cIn(r.t)}" placeholder="${cIn(draft.t)}"></div>
+    <label class="chk"><input id="rEx" type="checkbox"${ex?' checked':''}>Veggen er tegnet fra før</label>
+    ${draft.rows.length>1 ? '<div class="btns"><button id="rDelRow" class="danger">Fjern denne veggen</button></div>' : ''}</div>`;
+  return s;
+}
+function renderDraft(p){
+  const d = draft, G = draftGeo(d), P = G.pts, n = P.length-1, i = Math.min(d.act, d.rows.length-1), r = d.rows[i];
+  const gap = n ? Math.hypot(P[n].x-P[0].x, P[n].y-P[0].y)*S.scale : 0, closes = n>=3 && gap<=CLOSE_TOL;
+  let rows = '';
+  d.rows.forEach((row,k) => {
+    const icon = k===0 ? dirIcon(row.dir||0) : TURN[row.turn][0];
+    const tag = k<n && rowExist(k,P) ? 'finnes' : row.diag>0 ? 'diagonal' : '';
+    const len = row.len>0 ? fmtMeasN(row.len)+' '+unit : (k===i ? 'neste måling' : '–');
+    rows += `<div class="rrow${k===i?' on':''}" data-k="${k}" role="button" tabindex="0" aria-label="Vegg ${k+1}"><span class="n">${k+1}</span><span>${icon}</span><span>${len}</span><span class="ex">${tag}</span></div>`;
+    if(k===i) rows += rowDetail(k, G);
+  });
+  let stat = '';
+  if(n >= 2) stat = closes ? `Rommet går igjen. Avviket på ${fmtMeas(gap)} fordeles på veggene.` : `Avstand tilbake til start: ${fmtMeas(gap)}`;
+  const C = n>=2 ? draftClosed(d, closes ? 'adj' : 'wall') : null;
+  if(C) stat += `<br>Innvendig areal: ${(Math.abs(polyInfo(C.V).A)*S.scale*S.scale/10000).toFixed(2).replace('.',',')} m²`;
+  let btns = '';
+  if(closes) btns += '<button id="rDone">Ferdig</button>';
+  else { if(n>=2) btns += '<button id="rCloseW">Lukk med beregnet vegg</button>'; if(n>=3) btns += '<button id="rDoneAdj">Fordel avviket</button>'; }
+  if(n) btns += '<button id="rUndo">Angre siste</button>';
+  btns += `<button id="rCancel" class="danger">${cancelArm ? 'Trykk igjen for å forkaste' : 'Avbryt rom'}</button>`;
+  p.innerHTML = `<p class="sel-title">Mål rom</p>
+    <div class="row"><label for="rName">Romnavn</label><input id="rName" type="text" placeholder="for eksempel Soverom"></div>
+    <div class="row"><label for="rTd">Veggtykkelse (${unit})</label><input id="rTd" type="number" step="${ustep()}" value="${cIn(d.t)}"></div>
+    <p class="muted">Mål veggene innvendig én etter én, med klokka rundt rommet. Neste måling fra laseren går til raden som er markert.</p>
+    <div class="rows">${rows}</div>
+    ${stat ? `<p class="stat">${stat}</p>` : ''}
+    <label class="chk"><input id="rDims" type="checkbox"${d.dims?' checked':''}>Sett ut innvendige mål</label>
+    <div class="btns">${btns}</div>`;
+  $('rName').value = d.name || '';
+  const upd = fn => { fn(); saveDraft(); render(); };
+  const setLen = v => { r.len = v>0 ? v : null; if(r.len && i===d.rows.length-1) d.rows.push(newRow(r)); };
+  $('rName').onchange = e => upd(() => { d.name = e.target.value; });
+  $('rTd').onchange = e => { const v = cFrom(+e.target.value); if(v>0) upd(() => { d.t = v; }); };
+  p.querySelectorAll('.rrow').forEach(b => { b.onclick = () => upd(() => { d.act = +b.dataset.k; d.field = 'len'; cancelArm = false; });
+    b.onkeydown = e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); b.click(); } }; });
+  $('rLen').onfocus = () => { d.field = 'len'; };
+  $('rLen').onchange = e => upd(() => setLen(cFrom(+e.target.value)));
+  $('rLen').onkeydown = e => { if(e.key!=='Enter') return; e.preventDefault(); const v = cFrom(+e.target.value); e.target.onchange = null; e.target.blur();
+    upd(() => { setLen(v); if(r.len){ d.act = i+1; d.field = 'len'; } }); setTimeout(() => { const x = $('rLen'); if(x) x.focus(); }, 0); };
+  if($('rDiag')){ $('rDiag').onfocus = () => { d.field = 'diag'; };
+    $('rDiag').onchange = e => upd(() => { const v = cFrom(+e.target.value); r.diag = v>0 ? v : null; d.field = 'len'; }); }
+  if($('rAng')) $('rAng').onchange = e => upd(() => { r.ang = +e.target.value || 0; });
+  p.querySelectorAll('[data-dir]').forEach(b => b.onclick = () => upd(() => { r.dir = +b.dataset.dir; }));
+  p.querySelectorAll('[data-turn]').forEach(b => b.onclick = () => upd(() => { r.turn = b.dataset.turn; if(r.turn==='S') r.diag = null; if(r.turn==='A' && r.ang==null) r.ang = 90; }));
+  $('rT').onchange = e => upd(() => { const v = cFrom(+e.target.value); r.t = v>0 ? v : null; });
+  $('rEx').onchange = e => upd(() => { r.exist = e.target.checked; });
+  if($('rDelRow')) $('rDelRow').onclick = () => upd(() => deleteRow(i));
+  $('rDims').onchange = e => upd(() => { d.dims = e.target.checked; });
+  if($('rDone')) $('rDone').onclick = () => finishRoom('adj');
+  if($('rDoneAdj')) $('rDoneAdj').onclick = () => finishRoom('adj');
+  if($('rCloseW')) $('rCloseW').onclick = () => finishRoom('wall');
+  if($('rUndo')) $('rUndo').onclick = () => upd(() => deleteRow(n-1));
+  $('rCancel').onclick = () => {
+    if(!cancelArm){ cancelArm = true; render(); setTimeout(() => { if(cancelArm){ cancelArm = false; render(); } }, 3000); return; }
+    cancelArm = false; draft = null; saveDraft(); render(); toast('Rommet er forkastet'); };
+}
+// Avstand fra veggens endepunkt (senterlinja) til innerflaten på veggen den møter.
+function endOff(w, e){
+  const g = geom(w), px = e===1 ? w.x1 : w.x2, py = e===1 ? w.y1 : w.y2; let best = 0;
+  S.walls.forEach(o => { if(o===w) return; const go = geom(o), sn = Math.abs(g.ux*go.uy - g.uy*go.ux); if(sn < 0.2) return;
+    const c = (px-o.x1)*go.ux + (py-o.y1)*go.uy; if(c < -o.t || c > go.L + o.t) return;
+    if(Math.abs((px-o.x1)*go.nx + (py-o.y1)*go.ny) > 1.5) return; best = Math.max(best, (o.t/2)/sn); });
+  return best;
+}
+function fromCorner(o){ const w = find(S.walls, o.wall); if(!w) return 0; const L = geom(w).L;
+  return o.from==='B' ? L - o.c - o.w/2 - endOff(w,2) : o.c - o.w/2 - endOff(w,1); }
+function setFromCorner(o, v){ const w = find(S.walls, o.wall); if(!w) return; const L = geom(w).L;
+  o.c = o.from==='B' ? L - endOff(w,2) - v - o.w/2 : endOff(w,1) + v + o.w/2; clampOp(o); }
+function setOpWidth(o, v){ const edge = o.from==='B' ? o.c + o.w/2 : o.c - o.w/2; o.w = v; o.c = o.from==='B' ? edge - v/2 : edge + v/2; clampOp(o); }
+function syncChrome(){
+  $('planName').textContent = 'Plantegning ' + (S.name || '');
+  const sc = isScan(); $('scanRow').hidden = !sc; $('bReset').hidden = !sc; $('optCal').hidden = !sc; $('optCal').disabled = !sc;
+  if(!sc && $('glmMode').value==='cal') $('glmMode').value = 'len';
+  const pn = $('planNm'); if(document.activeElement!==pn) pn.value = S.name || '';
+  $('mRoom').setAttribute('aria-pressed', mode==='roomstart' || !!draft);
+}
+
+// ---------- palette ----------
+const PAL = [
+  ['window','Vindu','<path d="M2 8h22v4H2z"/><path d="M2 10h22"/>'],
+  ['door','Dør','<path d="M3 18h4M19 18h4M7 18V4"/><path d="M7 4a14 14 0 0112 14" stroke-dasharray="2 2"/>'],
+  ['double','Dobbeldør','<path d="M1 18h3M22 18h3M4 18V9M22 18V9"/><path d="M4 9a9 9 0 019 9M22 9a9 9 0 00-9 9" stroke-dasharray="2 2"/>'],
+  ['slide','Skyvedør','<path d="M2 9h12M12 13h12" stroke-width="2.4"/>'],
+  ['benk','Benk','<rect x="1" y="6" width="24" height="8"/>'],
+  ['komfyr','Komfyr','<rect x="6" y="3" width="14" height="14"/><circle cx="10" cy="7" r="1.6"/><circle cx="16" cy="7" r="1.6"/><circle cx="10" cy="13" r="1.6"/><circle cx="16" cy="13" r="1.6"/>'],
+  ['kum','Kum','<rect x="4" y="4" width="18" height="12"/><rect x="6" y="6" width="14" height="8" rx="2"/>'],
+  ['kjoleskap','Kjøleskap','<rect x="7" y="2" width="12" height="16"/><path d="M7 2l12 16M19 2L7 18"/>'],
+  ['seng','Seng','<rect x="5" y="1" width="16" height="18"/><rect x="7" y="3" width="12" height="3" rx="1"/>'],
+  ['sofa','Sofa','<rect x="2" y="5" width="22" height="11" rx="2"/><path d="M5 16V8h16v8"/>'],
+  ['bord','Bord','<rect x="4" y="4" width="18" height="12" rx="2"/>'],
+  ['trapp','Trapp','<rect x="2" y="5" width="22" height="10"/><path d="M6 5v10M10 5v10M14 5v10M18 5v10"/>'],
+  ['peis','Peis','<rect x="7" y="4" width="12" height="12" stroke-width="2.4"/><rect x="10" y="7" width="6" height="6"/>'],
+  ['pipe','Pipe','<rect x="7" y="4" width="12" height="12"/><path d="M10 10h6M13 7v6"/>'],
+  ['terrasse','Terrasse','<rect x="2" y="3" width="22" height="14" stroke-dasharray="3 2"/>'],
+  ['label','Tekst','<path d="M6 5h14M13 5v12"/>']
+];
+const SIZES = {benk:[240,60],komfyr:[60,60],kum:[80,50],kjoleskap:[60,65],seng:[150,200],sofa:[200,90],bord:[160,90],trapp:[100,250],peis:[60,50],pipe:[50,50],terrasse:[300,200]};
+function buildPalette(){
+  const p = $('palette');
+  PAL.forEach(([k,label,icon])=>{ const b = document.createElement('button'); b.type='button'; b.innerHTML = `<svg viewBox="0 0 26 20">${icon}</svg>${label}`; b.onclick = () => addThing(k); p.appendChild(b); });
+}
+function viewCenter(){ const r = svg.getBoundingClientRect(); return toWorld(r.left + r.width/2, r.top + r.height/2); }
+function addThing(k){
+  const c = viewCenter();
+  if(OPT[k]){
+    const sw = sel && sel.type==='wall' ? find(S.walls, sel.id) : null;
+    const hit = sw ? {w:sw, c:geom(sw).L/2} : nearestWall(c.x, c.y, Infinity); if(!hit){ toast('Tegn eller mål en vegg først'); return; }
+    mutate(()=>{ const w = toU(k==='window'?100 : k==='door'?90 : k==='double'?160 : 180);
+      const o = {id:nid('o'),wall:hit.w.id,c:hit.c,w,type:k,flip:false,side:1}; clampOp(o); S.openings.push(o); sel={type:'op',id:o.id}; });
+    toast(OPT[k]+' lagt på nærmeste vegg – dra den dit du vil');
+  } else if(k==='label'){
+    mutate(()=>{ const l={id:nid('l'),text:'Rom',x:c.x,y:c.y}; S.labels.push(l); sel={type:'label',id:l.id}; });
+    setTimeout(()=>{ const t=$('pTxt'); if(t){ t.focus(); t.select(); } },0);
+  } else {
+    mutate(()=>{ const [w,h] = SIZES[k]; const it = {id:nid('i'),kind:k,x:c.x,y:c.y,w:toU(w),h:toU(h),rot:0}; S.items.push(it); sel={type:'item',id:it.id}; });
+  }
+  setMode('select');
+}
+
+// ---------- geometry queries ----------
+function nearestWall(x,y,maxD){
+  let best=null;
+  S.walls.forEach(w=>{ const g=geom(w); let c=((x-w.x1)*g.ux+(y-w.y1)*g.uy); c=Math.max(0,Math.min(g.L,c));
+    const d=Math.hypot(x-(w.x1+g.ux*c), y-(w.y1+g.uy*c)); if(d<maxD && (!best||d<best.d)) best={w,c,d}; });
+  return best;
+}
+function snapPoint(x,y,exclude){
+  const tol = 9/view.k; let best=null;
+  S.walls.forEach(w=>{ [[w.x1,w.y1,1],[w.x2,w.y2,2]].forEach(([px,py,e])=>{ if(exclude && exclude.some(([ww,ee])=>ww===w&&ee===e)) return;
+    const d=Math.hypot(px-x,py-y); if(d<tol&&(!best||d<best.d)) best={x:px,y:py,d}; }); });
+  if(best) return {x:best.x,y:best.y,snapped:true};
+  return {x:snapU(x),y:snapU(y),snapped:false};
+}
+function ortho(ax,ay,p){ // lock to horizontal/vertical when close
+  const dx=p.x-ax, dy=p.y-ay; if(p.snapped) return p;
+  const a = Math.abs(Math.atan2(dy,dx)*180/Math.PI);
+  if(a<7||a>173) return {x:p.x,y:ay}; if(Math.abs(a-90)<7) return {x:ax,y:p.y}; return p;
+}
+
+// ---------- view / pointer ----------
+function toWorld(cx,cy){ const r = svg.getBoundingClientRect(); return {x:(cx-r.left-view.tx)/view.k, y:(cy-r.top-view.ty)/view.k}; }
+function zoomAt(cx,cy,f){ const r=svg.getBoundingClientRect(); const sx=cx-r.left, sy=cy-r.top; const k=Math.min(12,Math.max(.2,view.k*f)); f=k/view.k;
+  view.tx = sx-(sx-view.tx)*f; view.ty = sy-(sy-view.ty)*f; view.k=k; applyView(); render(); }
+function fit(){
+  const xs=[],ys=[]; S.walls.forEach(w=>{xs.push(w.x1,w.x2);ys.push(w.y1,w.y2);}); S.items.forEach(i=>{const m=Math.max(i.w,i.h)/2; xs.push(i.x-m,i.x+m); ys.push(i.y-m,i.y+m);});
+  if(draft) draftGeo(draft).pts.forEach(p=>{ xs.push(p.x); ys.push(p.y); });
+  if(!xs.length){ if(isScan()){ xs.push(0,BGW); ys.push(0,BGH); } else { xs.push(0,toU(500)); ys.push(0,toU(400)); } }
+  let x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys); const r=svg.getBoundingClientRect(); const pad=24;
+  const mw=toU(500), mh=toU(400); if(x1-x0<mw){ const c=(x0+x1)/2; x0=c-mw/2; x1=c+mw/2; } if(y1-y0<mh){ const c=(y0+y1)/2; y0=c-mh/2; y1=c+mh/2; }
+  const k=Math.min((r.width-2*pad)/(x1-x0||1),(r.height-2*pad)/(y1-y0||1)); view.k=k; view.tx=(r.width-(x1-x0)*k)/2-x0*k; view.ty=(r.height-(y1-y0)*k)/2-y0*k; applyView(); render();
+}
+
+const pointers = new Map(); let drag = null, pinch = null;
+svg.addEventListener('pointerdown', e => {
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  svg.setPointerCapture(e.pointerId); pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===2){ drag=null; const [a,b]=[...pointers.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y),mx:(a.x+b.x)/2,my:(a.y+b.y)/2}; return; }
+  const p = toWorld(e.clientX,e.clientY); const prev = snapshot();
+  const tgt = e.target.closest('[data-t]');
+  if(mode==='roomstart' && e.button!==1){ startRoom(roomSnap(p.x,p.y)); return; }
+  if(mode==='dim' && e.button!==1){ const s=measureSnap(p.x,p.y); const d={id:nid('d'),x1:s.x,y1:s.y,x2:s.x,y2:s.y,off:0}; S.dims.push(d); sel={type:'dim',id:d.id}; drag={kind:'newdim',d,prev}; render(); return; }
+  if(mode==='measure' && e.button!==1){ const s=measureSnap(p.x,p.y); measure={x1:s.x,y1:s.y,x2:s.x,y2:s.y}; drag={kind:'measure'}; render(); return; }
+  if(mode==='wall' && e.button!==1){
+    const s = snapPoint(p.x,p.y); const w = {id:nid('w'),x1:s.x,y1:s.y,x2:s.x,y2:s.y,t:toU(10)};
+    S.walls.push(w); drag={kind:'newwall',w,prev}; render(); return;
+  }
+  if(!tgt || e.button===1){ drag={kind:'pan',sx:e.clientX,sy:e.clientY,tx:view.tx,ty:view.ty,moved:false}; svg.classList.add('pan'); return; }
+  const t = tgt.dataset.t, id = tgt.dataset.id;
+  if(t==='dend'){ const d=find(S.dims,id); drag={kind:'dend',d,e:+tgt.dataset.e,prev,moved:false}; return; }
+  if(t==='end'){ const w=find(S.walls,id); const e1=+tgt.dataset.e; const others=linked(w)[e1]; drag={kind:'end',w,e:e1,others,prev,moved:false}; return; }
+  sel = {type: t==='op'?'op':t, id}; const o = find(byType(sel.type), id);
+  if(t==='wall') drag={kind:'wall',w:o,p0:p,orig:{x1:o.x1,y1:o.y1,x2:o.x2,y2:o.y2},lk:linked(o),prev,moved:false};
+  else if(t==='op') drag={kind:'op',o,prev,moved:false};
+  else if(t==='dim') drag={kind:'dimoff',o,p0:p,off0:o.off,prev,moved:false};
+  else drag={kind:'move',o,p0:p,ox:o.x,oy:o.y,prev,moved:false};
+  render();
+});
+svg.addEventListener('pointermove', e => {
+  if(!pointers.has(e.pointerId)) { updateHint(e); return; }
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch && pointers.size===2){ const [a,b]=[...pointers.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y), mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+    view.tx += mx-pinch.mx; view.ty += my-pinch.my; pinch.mx=mx; pinch.my=my; zoomAt(mx,my,d/pinch.d); pinch.d=d; return; }
+  if(!drag) return; const p = toWorld(e.clientX,e.clientY);
+  if(drag.kind==='pan'){ view.tx=drag.tx+e.clientX-drag.sx; view.ty=drag.ty+e.clientY-drag.sy; if(Math.abs(e.clientX-drag.sx)+Math.abs(e.clientY-drag.sy)>3) drag.moved=true; applyView(); return; }
+  drag.moved = true;
+  if(drag.kind==='measure'){ let s=measureSnap(p.x,p.y); if(!e.altKey && !s.snapped) s=ortho(measure.x1,measure.y1,s); else if(!e.altKey){ const o=ortho(measure.x1,measure.y1,{x:s.x,y:s.y,snapped:false}); if(Math.abs(o.x-s.x)<1.5&&Math.abs(o.y-s.y)<1.5) s=o; } measure.x2=s.x; measure.y2=s.y; render(); return; }
+  if(drag.kind==='newdim' || drag.kind==='dend'){ const d=drag.d; const end = drag.kind==='newdim'?2:drag.e; const ax=end===1?d.x2:d.x1, ay=end===1?d.y2:d.y1;
+    let q=measureSnap(p.x,p.y); if(!e.altKey && !q.snapped) q=ortho(ax,ay,q); if(end===1){d.x1=q.x;d.y1=q.y;} else {d.x2=q.x;d.y2=q.y;} render(); return; }
+  if(drag.kind==='dimoff'){ const G=dimGeom(drag.o); drag.o.off = snapU(drag.off0 + (p.x-drag.p0.x)*G.nx + (p.y-drag.p0.y)*G.ny); render(); return; }
+  if(drag.kind==='newwall'){ const s = ortho(drag.w.x1,drag.w.y1,snapPoint(p.x,p.y,[[drag.w,2]])); drag.w.x2=s.x; drag.w.y2=s.y; sel={type:'wall',id:drag.w.id}; }
+  else if(drag.kind==='end'){ const w=drag.w; const ax = drag.e===1?w.x2:w.x1, ay = drag.e===1?w.y2:w.y1;
+    const s = e.altKey? {x:p.x,y:p.y} : ortho(ax,ay,snapPoint(p.x,p.y,[[w,drag.e],...drag.others])); setEnd(w,drag.e,s.x,s.y); drag.others.forEach(([o,ee])=>setEnd(o,ee,s.x,s.y));
+    S.walls.forEach(clampOps); }
+  else if(drag.kind==='wall'){ const dx=snapU(p.x-drag.p0.x), dy=snapU(p.y-drag.p0.y), o=drag.orig, w=drag.w;
+    w.x1=o.x1+dx; w.y1=o.y1+dy; w.x2=o.x2+dx; w.y2=o.y2+dy; drag.lk[1].forEach(([ww,ee])=>setEnd(ww,ee,w.x1,w.y1)); drag.lk[2].forEach(([ww,ee])=>setEnd(ww,ee,w.x2,w.y2)); S.walls.forEach(clampOps); }
+  else if(drag.kind==='op'){ const hit = nearestWall(p.x,p.y,60/view.k); if(hit){ const o=drag.o; o.wall=hit.w.id; o.c=snapU(hit.c); clampOp(o); } }
+  else if(drag.kind==='move'){ const o=drag.o; o.x = snapU(drag.ox+p.x-drag.p0.x); o.y = snapU(drag.oy+p.y-drag.p0.y);
+    if(o.kind==='kum'||o.kind==='komfyr'){ // fest til benk den slippes på
+      const b = S.items.find(i=>{ if(i.kind!=='benk') return false; const v=((i.rot%180)+180)%180===90; const bw=v?i.h:i.w, bh=v?i.w:i.h; return Math.abs(o.x-i.x)<=bw/2 && Math.abs(o.y-i.y)<=bh/2; });
+      if(b){ const v=((b.rot%180)+180)%180===90; if(v){ o.x=b.x; } else { o.y=b.y; } o.rot = v?90:0; }
+    } }
+  render();
+});
+function endPointer(e){
+  pointers.delete(e.pointerId); if(pointers.size<2) pinch=null;
+  if(!drag) return; svg.classList.remove('pan');
+  if(drag.kind==='pan'){ if(!drag.moved){ sel=null; render(); } }
+  else if(drag.kind==='measure'){ render(); }
+  else if(drag.kind==='newdim'){ const d=drag.d; if(Math.hypot(d.x2-d.x1,d.y2-d.y1)<toU(5)){ S.dims=S.dims.filter(x=>x!==d); sel=null; } else commit(drag.prev); render(); }
+  else if(drag.kind==='newwall'){ const g=geom(drag.w); if(g.L<toU(10)){ S.walls=S.walls.filter(w=>w!==drag.w); sel=null; render(); } else { commit(drag.prev); sel={type:'wall',id:drag.w.id}; render(); } }
+  else if(drag.moved){ commit(drag.prev); }
+  drag=null;
+}
+svg.addEventListener('pointerup', endPointer); svg.addEventListener('pointercancel', endPointer);
+svg.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.clientX,e.clientY, Math.exp(-e.deltaY*0.0015)); }, {passive:false});
+function updateHint(e){ if(mode!=='roomstart' || !e) return; const p=toWorld(e.clientX,e.clientY); hover=roomSnap(p.x,p.y); render(); }
+
+function setMode(m){ mode=m; $('mSel').setAttribute('aria-pressed',m==='select'); $('mWall').setAttribute('aria-pressed',m==='wall'); $('mMeas').setAttribute('aria-pressed',m==='measure'); $('mDim').setAttribute('aria-pressed',m==='dim'); $('mRoom').setAttribute('aria-pressed',m==='roomstart'||!!draft); if(m!=='roomstart') hover=null; svg.classList.toggle('draw',m!=='select');
+  if(m!=='measure') measure=null;
+  $('hint').textContent = m==='roomstart' ? 'Trykk i hjørnet der rommet starter. Det fester seg til innvendige hjørner og veggflater. Esc avbryter.' : m==='dim' ? 'Dra mellom to punkter for å sette ut et mål. Velg det etterpå og dra det ut fra veggen.' : m==='measure' ? 'Dra mellom to punkter for å måle. Fester seg til veggflater og hjørner. Alt = fri vinkel.' : m==='wall' ? 'Dra for å tegne en vegg. Den låser seg vannrett/loddrett og fester seg til andre vegger.' : 'Dra for å flytte · tomt område panorerer · Delete sletter · Ctrl+Z angrer'; }
+
+// ---------- buttons & keys ----------
+$('mSel').onclick=()=>setMode('select'); $('mRoom').onclick=roomButton; $('mWall').onclick=()=>setMode('wall'); $('mDim').onclick=()=>{ setMode('dim'); render(); }; $('mMeas').onclick=()=>{ setMode('measure'); render(); };
+$('bUndo').onclick=doUndo; $('bRedo').onclick=doRedo;
+$('bIn').onclick=()=>{ const r=svg.getBoundingClientRect(); zoomAt(r.left+r.width/2,r.top+r.height/2,1.3); };
+$('bOut').onclick=()=>{ const r=svg.getBoundingClientRect(); zoomAt(r.left+r.width/2,r.top+r.height/2,1/1.3); };
+$('bFit').onclick=fit;
+$('scanOp').oninput=e=>{ scanOp=+e.target.value; render(); };
+$('dimsOn').onchange=e=>{ showDims=e.target.checked; render(); };
+$('gridOn').onchange=e=>{ showGrid=e.target.checked; render(); };
+$('bCopy').onclick=()=>{ const txt=snapshot(); if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>toast('JSON kopiert'),()=>showExport(txt)); } else showExport(txt); };
+function showExport(txt){ $('importBox').hidden=false; $('importTxt').value=txt; $('importTxt').select(); toast('Marker og kopier teksten'); }
+$('bImport').onclick=()=>{ $('importBox').hidden=false; $('importTxt').value=''; $('importTxt').focus(); };
+$('bCancelImport').onclick=()=>{ $('importBox').hidden=true; };
+$('bDoImport').onclick=()=>{ try{ const d=JSON.parse($('importTxt').value); if(!d.walls||!d.openings) throw 0; const prev=snapshot(); S=d; S.items=S.items||[]; S.labels=S.labels||[]; S.dims=S.dims||[]; uid=Math.max(uid,d.uid||0,1000); sel=null; commit(prev); $('importBox').hidden=true; fit(); toast('Plantegning lastet inn'); }catch(err){ toast('Teksten er ikke gyldig plantegnings-JSON'); } };
+let resetArm=false;
+$('bReset').onclick=()=>{ if(!resetArm){ resetArm=true; $('bReset').textContent='Trykk igjen for å bekrefte'; setTimeout(()=>{resetArm=false;$('bReset').textContent='Tilbakestill til skanning';},3000); return; }
+  resetArm=false; $('bReset').textContent='Tilbakestill til skanning'; const prev=snapshot(); S=initial(); sel=null; commit(prev); fit(); toast('Tilbakestilt til skanningen'); };
+let newArm=false;
+$('bNew').onclick=()=>{ if(!newArm){ newArm=true; $('bNew').textContent='Trykk igjen – tegningen erstattes'; setTimeout(()=>{newArm=false;$('bNew').textContent='Ny tegning';},3000); return; }
+  newArm=false; $('bNew').textContent='Ny tegning'; const prev=snapshot(); S=blankPlan(); draft=null; saveDraft(); sel=null; commit(prev); setMode('select'); fit(); toast('Ny tom tegning. Trykk «Mål rom» for å begynne.'); };
+$('planNm').onchange=e=>mutate(()=>{ S.name=e.target.value.trim()||'Uten navn'; });
+document.addEventListener('keydown', e=>{
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ if(typing) return; e.preventDefault(); e.shiftKey?doRedo():doUndo(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ if(typing) return; e.preventDefault(); doRedo(); return; }
+  if(typing) return;
+  if((e.key==='Delete'||e.key==='Backspace') && sel){ e.preventDefault(); const b=$('pDel'); if(b) b.click(); }
+  else if(e.key==='Escape'){ sel=null; setMode('select'); render(); }
+  else if(e.key==='d'){ setMode('dim'); render(); }
+  else if(e.key==='Enter' && mode==='measure' && measure){ keepMeasure(); }
+  else if(e.key==='m'){ setMode('measure'); render(); }
+  else if(e.key==='v') setMode('select'); else if(e.key==='w') setMode('wall');
+  else if(e.key==='r' && sel && sel.type==='item'){ $('pRot').click(); }
+  else if(e.key==='f' && sel && sel.type==='op' && $('pFlip')){ $('pFlip').click(); }
+});
+window.addEventListener('resize', ()=>applyView());
+
+// ---------- laseravstandsmåler (kun i PC-programmet) ----------
+const glm = {connected:false, laser:false, hist:[], busy:false};
+const IS_WEB = true; // settes til true i nettversjonen av build_web.py
+const api = () => (window.pywebview && window.pywebview.api) || (IS_WEB ? webApi : null);
+// ---------- måler og filer i nettleseren (Web Bluetooth, Chrome på Android og PC) ----------
+const GLM_SVC = '02a6c0d0-0451-4000-b000-fb3210111989', GLM_CHR = '02a6c0d1-0451-4000-b000-fb3210111989';
+const CMD_MEASURE = new Uint8Array([0xC0,0x56,0x01,0x00,0x1E]), CMD_SYNC = new Uint8Array([0xC0,0x55,0x02,0x01,0x00,0x1A]);
+const hexOf = u8 => Array.from(u8, b => b.toString(16).padStart(2,'0')).join(' ');
+const wb = {dev:null, chr:null, laser:false, last:[null,0], wake:null};
+const emit = (k,p) => { if(window.onGlm) window.onGlm(k,p); };
+async function wbWrite(data){ const c = wb.chr; if(!c) throw new Error('Måleren er ikke klar');
+  if(c.properties.write) await c.writeValueWithResponse(data); else await c.writeValueWithoutResponse(data); }
+function wbNotify(ev){
+  const v = ev.target.value, d = new Uint8Array(v.buffer, v.byteOffset, v.byteLength); emit('raw', {dir:'inn', hex:hexOf(d)});
+  if(d.length >= 11 && d[0]===0xC0 && d[1]===0x55){ // avstand i meter som float32 på byte 7–10
+    const m0 = new DataView(d.buffer, d.byteOffset, d.byteLength).getFloat32(7, true);
+    if(!isNaN(m0) && m0 >= 0.05 && m0 <= 60){ const m = Math.round(m0*10000)/10000, now = performance.now();
+      if(wb.last[0]===m && now - wb.last[1] < 300) return; wb.last = [m, now]; wb.laser = false; emit('measurement', {m}); } }
+}
+async function wakeOn(){ try{ if(navigator.wakeLock && !wb.wake){ wb.wake = await navigator.wakeLock.request('screen'); wb.wake.addEventListener('release', () => { wb.wake = null; }); } }catch(e){} }
+document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible' && wb.chr) wakeOn(); });
+const webApi = {
+  async glm_connect(_addr, sync){
+    try{
+      if(!navigator.bluetooth) throw new Error('Denne nettleseren støtter ikke Bluetooth. Bruk Chrome på Android eller PC.');
+      emit('status', {state:'searching', text:'Velg måleren i listen …'});
+      const dev = await navigator.bluetooth.requestDevice({filters:[{namePrefix:'GLM'}, {services:[GLM_SVC]}], optionalServices:[GLM_SVC]});
+      emit('status', {state:'connecting', text:'Kobler til ' + (dev.name || 'GLM') + ' …'});
+      dev.addEventListener('gattserverdisconnected', () => { wb.chr = null; wb.laser = false;
+        if(wb.wake){ wb.wake.release().catch(() => {}); wb.wake = null; }
+        emit('status', {state:'disconnected', text:'Forbindelsen til måleren ble brutt'}); });
+      const srv = await dev.gatt.connect(), svc = await srv.getPrimaryService(GLM_SVC);
+      let chr; try{ chr = await svc.getCharacteristic(GLM_CHR); }
+      catch(e){ const all = await svc.getCharacteristics();
+        chr = all.find(c => (c.properties.notify || c.properties.indicate) && (c.properties.write || c.properties.writeWithoutResponse));
+        if(!chr) throw new Error('Fant ingen kanal for målinger på måleren'); }
+      emit('raw', {dir:'info', hex:'bruker ' + chr.uuid});
+      chr.addEventListener('characteristicvaluechanged', wbNotify); await chr.startNotifications();
+      wb.dev = dev; wb.chr = chr; wb.laser = false;
+      if(sync){ try{ await wbWrite(CMD_SYNC); emit('raw', {dir:'ut', hex:hexOf(CMD_SYNC)}); }
+        catch(e){ emit('raw', {dir:'feil', hex:'synk-kommando feilet: ' + e.message}); } }
+      emit('status', {state:'connected', text:'Tilkoblet ' + (dev.name || 'GLM')}); wakeOn();
+      return {ok:true, name:dev.name};
+    }catch(e){
+      const msg = e && e.name==='NotFoundError' ? 'Ingen måler valgt' : (e && e.message) || String(e);
+      emit('status', {state:'disconnected', text:msg}); return {ok:false, error:msg};
+    }
+  },
+  async glm_disconnect(){ try{ if(wb.dev && wb.dev.gatt.connected) wb.dev.gatt.disconnect(); }catch(e){} return {ok:true}; },
+  async glm_trigger(){
+    try{ if(!wb.chr) throw new Error('Måleren er ikke tilkoblet'); await wbWrite(CMD_MEASURE); emit('raw', {dir:'ut', hex:hexOf(CMD_MEASURE)});
+      wb.laser = !wb.laser; return {ok:true, laser:wb.laser}; }
+    catch(e){ return {ok:false, error:e.message || String(e)}; }
+  },
+  async save_plan(text, name){
+    try{ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type:'application/json'}));
+      a.download = name || 'plantegning.plan.json'; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); return {ok:true, path:'Nedlastinger/' + a.download}; }
+    catch(e){ return {ok:false, error:e.message}; }
+  },
+  open_plan(){ return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json,application/json';
+    i.onchange = () => { const f = i.files && i.files[0]; if(!f){ res({ok:true, cancelled:true}); return; }
+      f.text().then(t => res({ok:true, path:f.name, text:t}), e => res({ok:false, error:e.message})); }; i.click(); }); }
+};
+function glmUi(){
+  $('gConn').textContent = glm.connected ? 'Koble fra' : 'Koble til GLM';
+  $('gConn').disabled = glm.busy; $('gTrig').disabled = !glm.connected || glm.busy;
+  $('gTrig').textContent = glm.laser ? 'Mål nå' : 'Laser på';
+  $('glmHist').textContent = '';
+  glm.hist.slice(0,10).forEach(c=>{ const b=document.createElement('button'); b.type='button'; b.textContent=fmtMeasN(c); b.title='Bruk denne målingen på det som er valgt'; b.onclick=()=>useMeasurement(c,true); $('glmHist').appendChild(b); });
+}
+function glmRefresh(){ if(glm.hist.length) $('glmVal').innerHTML = fmtMeasN(glm.hist[0])+' <small>'+unit+'</small>'; else $('glmVal').innerHTML='– <small>'+unit+'</small>'; glmUi(); }
+function glmStatus(state,text){ const d=$('glmDot'); d.className='dot'+(state==='connected'?' on':(state==='searching'||state==='connecting')?' busy':''); $('glmText').textContent=text;
+  glm.connected = state==='connected'; if(!glm.connected) glm.laser=false; glmUi(); }
+function rawLog(dir,hex){ const r=$('glmRaw'); const t=new Date().toLocaleTimeString('nb-NO'); r.textContent = `${t} ${dir.padEnd(4)} ${hex}\n` + r.textContent.slice(0,20000); }
+window.onGlm = (kind,p) => {
+  if(kind==='raw') rawLog(p.dir,p.hex);
+  else if(kind==='status') glmStatus(p.state,p.text);
+  else if(kind==='measurement'){ const c=p.m*100; glm.laser=false; glm.hist.unshift(c); if(glm.hist.length>30) glm.hist.pop();
+    $('glmVal').innerHTML = fmtMeasN(c)+' <small>'+unit+'</small>'; glmUi(); useMeasurement(c,false); }
+};
+function useMeasurement(c, fromHistory){
+  const mode = fromHistory && $('glmMode').value==='show' ? 'len' : $('glmMode').value;
+  if(mode==='show') return;
+  if(draft){ draftMeasure(c); return; }
+  if(!sel){ toast('Måling '+fmtMeas(c)+' – velg noe for å bruke den'); return; }
+  const o = find(byType(sel.type), sel.id); if(!o) return; const v = toU(c);
+  if(mode==='cal'){
+    let L=null; if(sel.type==='wall') L=geom(o).L; else if(sel.type==='dim') L=dimGeom(o).L;
+    if(!L){ toast('Velg en vegg eller et mål å kalibrere mot'); return; }
+    mutate(()=>{ S.scale = c / L; }); toast('Målestokk kalibrert: '+fmtMeas(c)); return;
+  }
+  if(sel.type==='wall') mutate(()=>setWallLen(o,v));
+  else if(sel.type==='dim') mutate(()=>{ const G=dimGeom(o); o.x2=o.x1+G.ux*v; o.y2=o.y1+G.uy*v; });
+  else if(sel.type==='op'){
+    if(opTgt==='pos'){ mutate(()=>setFromCorner(o,v)); opTgt='w'; render(); toast('Avstand fra hjørnet '+fmtMeas(c)+'. Neste måling er bredden.'); return; }
+    mutate(()=>setOpWidth(o,v)); opTgt='pos'; render(); }
+  else if(sel.type==='item') mutate(()=>{ o.w=v; });
+  else { toast('Tekst har ingen lengde'); return; }
+  toast('Satt til '+fmtMeas(c));
+}
+async function glmConnect(){
+  const a=api(); if(!a) return; glm.busy=true; glmUi();
+  try{
+    if(glm.connected){ await a.glm_disconnect(); }
+    else { const r = await a.glm_connect(null, $('glmSync').checked); if(!r.ok) toast(r.error); }
+  } finally { glm.busy=false; glmUi(); }
+}
+async function glmTrigger(){
+  const a=api(); if(!a) return; const r = await a.glm_trigger();
+  if(!r.ok){ toast(r.error); return; } glm.laser = r.laser; glmUi();
+}
+function fileName(){ const n=(S.name||'').replace(/[\\/:*?"<>|]/g,'').trim(); return (n?'plantegning '+n:'plantegning')+'.plan.json'; }
+async function saveFile(){ const a=api(); if(!a) return; const r=await a.save_plan(snapshot(), fileName()); if(r.ok&&!r.cancelled) toast('Lagret: '+r.path); else if(!r.ok) toast('Kunne ikke lagre: '+r.error); }
+async function openFile(){ const a=api(); if(!a) return; const r=await a.open_plan(); if(!r.ok){ toast('Kunne ikke åpne: '+r.error); return; } if(r.cancelled) return;
+  try{ const d=JSON.parse(r.text); if(!d.walls||!d.openings) throw 0; const prev=snapshot(); S=d; S.items=S.items||[]; S.labels=S.labels||[]; S.dims=S.dims||[]; uid=Math.max(uid,d.uid||0,1000); sel=null; commit(prev); fit(); toast('Åpnet '+r.path); }
+  catch(e){ toast('Filen er ikke en gyldig plantegning'); } }
+function enableApp(){ glmRefresh();
+  $('glmNoApp').hidden=true; $('glmCtl').hidden=false; $('bSaveF').hidden=false; $('bOpenF').hidden=false; glmUi();
+}
+$('gConn').onclick=glmConnect; $('gTrig').onclick=glmTrigger; $('bSaveF').onclick=saveFile; $('bOpenF').onclick=openFile;
+$('gCopyRaw').onclick=()=>{ const t=$('glmRaw').textContent; (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Logg kopiert'),()=>toast('Marker teksten og kopier')); };
+$('glmMode').onchange=()=>{ $('glmTip').textContent = $('glmMode').value==='cal' ? 'Velg et mål satt ut mellom to veggflater, og mål samme strekning med laseren.' : $('glmMode').value==='len' ? 'Mens du måler et rom, går målingen til rommet. Ellers virker den på valgt mål, vegg, vindu, dør eller møbel.' : 'Målingen vises bare og legges i listen.'; };
+if(api()) enableApp(); else window.addEventListener('pywebviewready', enableApp);
+document.addEventListener('keydown', e=>{ if(e.key===' ' && glm.connected && !/INPUT|TEXTAREA|SELECT|BUTTON/.test(document.activeElement.tagName)){ e.preventDefault(); glmTrigger(); }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s' && api()){ e.preventDefault(); saveFile(); } });
+
+// ---------- boot ----------
+load(); document.querySelectorAll('.ub').forEach(b=>b.onclick=()=>setUnit(b.dataset.u)); document.querySelectorAll('.ub').forEach(b=>b.setAttribute('aria-pressed', b.dataset.u===unit)); buildPalette(); setMode('select'); updUndo();
+requestAnimationFrame(fit);
+})();
+</script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>
