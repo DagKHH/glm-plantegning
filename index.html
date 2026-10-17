@@ -198,7 +198,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web ddc834c726</p>
+      <p class="muted" id="verTxt">Versjon web d1ace290a7</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -1149,6 +1149,6 @@ load(); document.querySelectorAll('.ub').forEach(b=>b.onclick=()=>setUnit(b.data
 requestAnimationFrame(fit);
 })();
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', {updateViaCache: 'none'});</script>
 </body>
 </html>
