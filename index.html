@@ -1008,8 +1008,9 @@ const webApi = {
   async glm_connect(_addr, sync){
     try{
       if(!navigator.bluetooth) throw new Error('Denne nettleseren støtter ikke Bluetooth. Bruk Chrome på Android eller PC.');
-      emit('status', {state:'searching', text:'Velg måleren i listen …'});
-      const dev = await navigator.bluetooth.requestDevice({filters:[{namePrefix:'GLM'}, {services:[GLM_SVC]}], optionalServices:[GLM_SVC]});
+      emit('status', {state:'searching', text:'Velg måleren i listen. Navnet inneholder vanligvis GLM.'});
+      // alle enheter vises: navnet på måleren kan være for eksempel «Bosch GLM…», som et prefiks-filter ikke fanger
+      const dev = await navigator.bluetooth.requestDevice({acceptAllDevices:true, optionalServices:[GLM_SVC]});
       emit('status', {state:'connecting', text:'Kobler til ' + (dev.name || 'GLM') + ' …'});
       dev.addEventListener('gattserverdisconnected', () => { wb.chr = null; wb.laser = false;
         if(wb.wake){ wb.wake.release().catch(() => {}); wb.wake = null; }
@@ -1027,7 +1028,12 @@ const webApi = {
       emit('status', {state:'connected', text:'Tilkoblet ' + (dev.name || 'GLM')}); wakeOn();
       return {ok:true, name:dev.name};
     }catch(e){
-      const msg = e && e.name==='NotFoundError' ? 'Ingen måler valgt' : (e && e.message) || String(e);
+      const em = (e && e.message) || String(e); emit('raw', {dir:'feil', hex:((e && e.name) || 'Feil') + ': ' + em});
+      let msg = em;
+      if(e && e.name==='NotFoundError') msg = /adapter|unavailable|not available/i.test(em) ? 'Bluetooth er slått av på telefonen.'
+        : 'Ingen måler valgt. Står den ikke i listen, slå på Bluetooth i måleren og koble den fra PC-en og MeasureOn-appen.';
+      else if(e && e.name==='SecurityError') msg = 'Chrome har ikke lov til å bruke Bluetooth. Gi Chrome tilgang til «Enheter i nærheten» i telefonens innstillinger.';
+      else if(/GATT|connect/i.test(em)) msg = 'Fikk ikke koblet til måleren. Prøv igjen, og hold telefonen nær måleren.';
       emit('status', {state:'disconnected', text:msg}); return {ok:false, error:msg};
     }
   },
