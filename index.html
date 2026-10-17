@@ -198,7 +198,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web 76e9b84e74</p>
+      <p class="muted" id="verTxt">Versjon web ee9ca5d976</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -1017,7 +1017,8 @@ function mtChunks(cmd, payload){
   mt.seq = (mt.seq + 1) % 15; return out;
 }
 function mtWrite(bytes){ // skrivinger må komme etter hverandre
-  const u = new Uint8Array(bytes), p = mt.wq.then(() => { emit('raw', {dir:'ut', hex:hexOf(u)}); return mt.tx.writeValueWithResponse(u); });
+  const u = new Uint8Array(bytes), p = mt.wq.then(() => { emit('raw', {dir:'ut', hex:hexOf(u)});
+    return mt.tx.properties.write ? mt.tx.writeValueWithResponse(u) : mt.tx.writeValueWithoutResponse(u); });
   mt.wq = p.catch(e => emit('raw', {dir:'feil', hex:'skriving feilet: ' + e.message})); return p;
 }
 function mtRequest(cmd, payload){
@@ -1028,6 +1029,7 @@ function mtRequest(cmd, payload){
     mtChunks(cmd, payload).forEach(c => mtWrite(c).catch(e => { if(mt.pending){ mt.pending.reject(e); mt.pending = null; } }));
   });
 }
+function charProps(c){ return ['read','write','writeWithoutResponse','notify','indicate'].filter(n => c.properties[n]).join(','); }
 function mtSyncParse(p){
   const dv = new DataView(new Uint8Array(p).buffer);
   return {type:p[0] & 0x1f, ref:p[1] & 7, result:p.length >= 20 ? dv.getFloat32(16, true) : NaN, d0:p.length >= 8 ? dv.getFloat32(4, true) : NaN, laser:p.length > 28 ? p[28] & 1 : 0};
@@ -1093,7 +1095,12 @@ const webApi = {
         for(const [n,c] of [['modell','model_number_string'], ['produsent','manufacturer_name_string'], ['fastvare','firmware_revision_string']]){
           try{ emit('raw', {dir:'info', hex:n + ': ' + dec.decode(await (await di.getCharacteristic(c)).readValue())}); }catch(_){} } }catch(_){}
       if(wb.kind==='mt'){
-        stage = 'kanal'; mt.tx = await svc.getCharacteristic(MT_TX); const rx = await svc.getCharacteristic(MT_RX);
+        stage = 'kanal'; const all = await svc.getCharacteristics();
+        all.forEach(c => emit('raw', {dir:'info', hex:'kanal ' + c.uuid + ' [' + charProps(c) + ']'}));
+        mt.tx = all.find(c => c.uuid===MT_TX) || all.find(c => c.properties.write || c.properties.writeWithoutResponse);
+        const rx = all.find(c => c.uuid===MT_RX) || all.find(c => c.properties.notify || c.properties.indicate);
+        if(!mt.tx || !rx) throw new Error('Fant ' + all.length + ' kanaler, men ingen å skrive til og lytte på');
+        emit('raw', {dir:'info', hex:'skriver til ' + mt.tx.uuid + ', lytter på ' + rx.uuid});
         mt.seq = 1; mt.buf = []; mt.aseq = -1; mt.pending = null; mt.wq = Promise.resolve();
         stage = 'varsler'; rx.addEventListener('characteristicvaluechanged', mtNotify); await rx.startNotifications();
         wb.dev = dev; wb.chr = mt.tx; wb.laser = false;
@@ -1105,7 +1112,7 @@ const webApi = {
       stage = 'kanal';
       let chr; try{ chr = await svc.getCharacteristic(GLM_CHR); }
       catch(e){ const all = await svc.getCharacteristics();
-        all.forEach(c => emit('raw', {dir:'info', hex:'kanal ' + c.uuid + ' ' + Object.keys(Object.getPrototypeOf(c.properties)).filter(n => c.properties[n] === true).join(',')}));
+        all.forEach(c => emit('raw', {dir:'info', hex:'kanal ' + c.uuid + ' [' + charProps(c) + ']'}));
         chr = all.find(c => (c.properties.notify || c.properties.indicate) && (c.properties.write || c.properties.writeWithoutResponse));
         if(!chr) throw new Error('Fant ingen kanal for målinger på måleren'); }
       emit('raw', {dir:'info', hex:'bruker ' + chr.uuid});
