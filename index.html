@@ -198,7 +198,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web ee9ca5d976</p>
+      <p class="muted" id="verTxt">Versjon web 146e631a51</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -1094,6 +1094,7 @@ const webApi = {
       try{ const di = await dev.gatt.getPrimaryService('device_information'), dec = new TextDecoder();
         for(const [n,c] of [['modell','model_number_string'], ['produsent','manufacturer_name_string'], ['fastvare','firmware_revision_string']]){
           try{ emit('raw', {dir:'info', hex:n + ': ' + dec.decode(await (await di.getCharacteristic(c)).readValue())}); }catch(_){} } }catch(_){}
+      let preChr = null;
       if(wb.kind==='mt'){
         stage = 'kanal'; const all = await svc.getCharacteristics();
         all.forEach(c => emit('raw', {dir:'info', hex:'kanal ' + c.uuid + ' [' + charProps(c) + ']'}));
@@ -1101,6 +1102,9 @@ const webApi = {
         const rx = all.find(c => c.uuid===MT_RX) || all.find(c => c.properties.notify || c.properties.indicate);
         if(!mt.tx || !rx) throw new Error('Fant ' + all.length + ' kanaler, men ingen å skrive til og lytte på');
         emit('raw', {dir:'info', hex:'skriver til ' + mt.tx.uuid + ', lytter på ' + rx.uuid});
+        // GLM 50 C: én felles kanal og enkle rammer uten sekvens-byte – samme kommandoer som den eldre protokollen
+        if(mt.tx === rx){ wb.kind = 'old'; preChr = rx; emit('raw', {dir:'info', hex:'én felles kanal: bruker GLM 50 C-kommandoene'}); }
+        else {
         mt.seq = 1; mt.buf = []; mt.aseq = -1; mt.pending = null; mt.wq = Promise.resolve();
         stage = 'varsler'; rx.addEventListener('characteristicvaluechanged', mtNotify); await rx.startNotifications();
         wb.dev = dev; wb.chr = mt.tx; wb.laser = false;
@@ -1108,13 +1112,15 @@ const webApi = {
           catch(e){ emit('raw', {dir:'feil', hex:'synk feilet: ' + e.message}); } }
         emit('status', {state:'connected', text:'Tilkoblet ' + (dev.name || 'GLM')}); wakeOn();
         return {ok:true, name:dev.name};
+        }
       }
       stage = 'kanal';
-      let chr; try{ chr = await svc.getCharacteristic(GLM_CHR); }
+      let chr = preChr;
+      if(!chr){ try{ chr = await svc.getCharacteristic(GLM_CHR); }
       catch(e){ const all = await svc.getCharacteristics();
         all.forEach(c => emit('raw', {dir:'info', hex:'kanal ' + c.uuid + ' [' + charProps(c) + ']'}));
         chr = all.find(c => (c.properties.notify || c.properties.indicate) && (c.properties.write || c.properties.writeWithoutResponse));
-        if(!chr) throw new Error('Fant ingen kanal for målinger på måleren'); }
+        if(!chr) throw new Error('Fant ingen kanal for målinger på måleren'); } }
       emit('raw', {dir:'info', hex:'bruker ' + chr.uuid});
       stage = 'varsler'; chr.addEventListener('characteristicvaluechanged', wbNotify); await chr.startNotifications();
       wb.dev = dev; wb.chr = chr; wb.laser = false;
