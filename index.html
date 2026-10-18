@@ -238,7 +238,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web be9f65b310</p>
+      <p class="muted" id="verTxt">Versjon web bbadc6c2e2</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -444,7 +444,8 @@ function drawSelection(){
     dimText(px-g.nx*d, py-g.ny*d, 'b '+ufmt(o.w), g);
   } else if(sel.type==='item' && o.kind==='veranda'){
     const gg = el('g',{transform:`translate(${o.x} ${o.y}) rotate(${o.rot})`,'pointer-events':'none'},world);
-    el('rect',{x:-o.w/2-3,y:-o.h/2-3,width:o.w+6,height:o.h+6,class:'selbox','stroke-width':1.5/view.k},gg);
+    el('polygon',{points:o.pts.map(q=>q.join(',')).join(' '),class:'selbox','stroke-width':1.5/view.k},gg);
+    o.pts.forEach((q,i)=>{ const W=vWorld(o,q[0],q[1]); el('circle',{cx:W.x,cy:W.y,r:(vSel===i?8:6)/view.k,class:'handle','stroke-width':2/view.k,'data-t':'vend','data-id':o.id,'data-e':i},world); });
     const r = o.rot*Math.PI/180, ly = -o.h/2-10/view.k; dimText(o.x - ly*Math.sin(r), o.y + ly*Math.cos(r), ufmt(o.w)+' × '+ufmt(o.h), {ux:Math.cos(r),uy:Math.sin(r)});
   } else if(sel.type==='item'){
     const rot = ((o.rot%180)+180)%180===90; const w = rot?o.h:o.w, h = rot?o.w:o.h;
@@ -948,7 +949,34 @@ const PSI0 = 0.7, PSI2_A = 0.3, PSI2_S = 0.2;
 // Lastkombinasjoner i bruddgrense (NS-EN 1990 NA, 6.10a/6.10b): faktorer for egenlast, nyttelast og snø, med kmod for korteste last i kombinasjonen
 const COMBOS = [{g:1.2,q:1.5,s:0,k:KMOD.M,n:'nyttelast alene'}, {g:1.2,q:1.5,s:1.05,k:KMOD.S,n:'nyttelast + snø'}, {g:1.2,q:1.05,s:1.5,k:KMOD.S,n:'snø + nyttelast'}, {g:1.35,q:1.05,s:1.05,k:KMOD.S,n:'6.10a'}];
 function vcfg(it){ const d = {hgt:60, att:true, cc:600, joist:'48x198', beam:'2x48x198', post:'98x98', board:28, kom:'', alt:0, sk:null, q:4, nsp:0, npo:0, gp:150, braced:true, name:'', snap:true};
-  for(const k in d) if(it[k]===undefined) it[k] = d[k]; return it; }
+  for(const k in d) if(it[k]===undefined) it[k] = d[k];
+  if(!it.pts || it.pts.length < 3) it.pts = rectPts(it.w, it.h); return it; }
+// Omrisset er en mangekant i lokale koordinater (tegningsenheter) rundt midtpunktet; hussiden ligger langs y = -h/2.
+const rectPts = (w, h) => [[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]];
+function lPts(w, h, right){ const nw = w/2, nh = h/2, P = [[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2+nw,h/2],[-w/2+nw,h/2-nh],[-w/2,h/2-nh]]; return right ? P : P.map(([x,y]) => [-x,y]).reverse(); }
+function vNorm(o){ // flytt mangekanten så midtpunktet er midt i omrisset, uten at den flytter seg på tegningen
+  const xs = o.pts.map(p => p[0]), ys = o.pts.map(p => p[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const cx = (x0+x1)/2, cy = (y0+y1)/2, r = (o.rot||0)*Math.PI/180;
+  o.pts = o.pts.map(([x,y]) => [x-cx, y-cy]); o.x += cx*Math.cos(r) - cy*Math.sin(r); o.y += cx*Math.sin(r) + cy*Math.cos(r);
+  o.w = Math.max(x1-x0, toU(30)); o.h = Math.max(y1-y0, toU(30)); }
+function vWorld(o, x, y){ const r = (o.rot||0)*Math.PI/180; return {x:o.x + x*Math.cos(r) - y*Math.sin(r), y:o.y + x*Math.sin(r) + y*Math.cos(r)}; }
+function vLocal(o, x, y){ const r = (o.rot||0)*Math.PI/180, dx = x-o.x, dy = y-o.y; return {x:dx*Math.cos(r) + dy*Math.sin(r), y:-dx*Math.sin(r) + dy*Math.cos(r)}; }
+// Snitt av mangekanten med linja y = c (axis 'y') eller x = c (axis 'x'): liste av [fra, til] langs den andre aksen.
+function chords(pts, axis, c){
+  const n = pts.length, a = axis==='y' ? 1 : 0, b = 1-a, xs = [];
+  for(let i=0; i<n; i++){ const p = pts[i], q = pts[(i+1)%n]; if((p[a] <= c && q[a] > c) || (q[a] <= c && p[a] > c)) xs.push(p[b] + (q[b]-p[b])*(c-p[a])/(q[a]-p[a])); }
+  xs.sort((u,v) => u-v); const out = []; for(let i=0; i+1<xs.length; i+=2) if(xs[i+1]-xs[i] > 0.5) out.push([xs[i], xs[i+1]]); return out; }
+function vArea(pts){ let A = 0; for(let i=0; i<pts.length; i++){ const p = pts[i], q = pts[(i+1)%pts.length]; A += p[0]*q[1] - q[0]*p[1]; } return Math.abs(A)/2; }
+function sideLen(o, k){ const p = o.pts[k], q = o.pts[(k+1)%o.pts.length]; return Math.hypot(q[0]-p[0], q[1]-p[1]); }
+// Setter lengden på side k ved å flytte enden, og tar med hjørnene etter som står vinkelrett på siden.
+function setSide(o, k, L){
+  const n = o.pts.length, p = o.pts[k], q = o.pts[(k+1)%n], cur = Math.hypot(q[0]-p[0], q[1]-p[1]); if(!(L > 1) || cur < 1e-6) return;
+  const ux = (q[0]-p[0])/cur, uy = (q[1]-p[1])/cur, d = L-cur;
+  for(let j=k+1; j%n!==k; j++){ const i = j%n;
+    if(j > k+1){ const a = o.pts[(j-1)%n], b = o.pts[i], ex = b[0]-a[0], ey = b[1]-a[1], el = Math.hypot(ex,ey)||1; if(Math.abs(ex*ux + ey*uy)/el > 0.1) break; }
+    o.pts[i] = [o.pts[i][0] + ux*d, o.pts[i][1] + uy*d]; }
+  vNorm(o); if(o.snap!==false) verandaSnap(o);
+}
 // Fritt opplagt bjelke med felt L (m), tverrsnitt b×h (mm) og jevnt fordelte laster (kN/m). Utnyttelse for moment, skjær og nedbøyning.
 function beamCheck(b, h, L, wG, wQ, wS){
   const Wel = b*h*h/6, I = b*h*h*h/12, kh = h < 150 ? Math.min(1.3, Math.pow(150/h, 0.2)) : 1;
@@ -972,42 +1000,53 @@ function postCheck(b, h, Lp, ke, wG, wQ, wS, Lb){
   return {u, kc, lam, N};
 }
 function verCalc(it){
-  vcfg(it); const u2m = S.scale/100, B = it.w*u2m, D = it.h*u2m, cc = it.cc/1000;
+  vcfg(it); const u2m = S.scale/100, B = it.w*u2m, D = it.h*u2m, cc = it.cc/1000, P0 = it.pts, w = it.w, h = it.h;
   const J = secOf(it.joist), Bm = secOf(it.beam), P = secOf(it.post);
   const kom = SNOW.find(k => k.n===it.kom) || null, skAuto = snowAt(kom, +it.alt||0), sk = it.sk!=null ? it.sk : skAuto;
   const s = sk!=null ? 0.8*sk : 0; // snø på flatt dekke: formfaktor 0,8, Ce = Ct = 1,0
   const G = it.board/1000*C24.rho + J.b*J.h*1e-6*C24.rho/cc + 0.10, Q = +it.q || 0;
-  // bjelkelag: antall felt (dragere) velges automatisk til bjelken holder
+  // bjelkelag: antall felt (dragere) velges automatisk til den lengste bjelken holder
   let nsp = it.nsp > 0 ? it.nsp : 0, jr = null;
   if(!nsp){ for(nsp=1; nsp<8; nsp++){ jr = beamCheck(J.b, J.h, D/nsp, G*cc, Q*cc, s*cc); if(jr.u <= 1) break; } if(nsp===8) nsp = 7; }
   else jr = beamCheck(J.b, J.h, D/nsp, G*cc, Q*cc, s*cc);
-  const Lj = D/nsp, nj = Math.ceil(B/cc - 1e-9) + 1, nbp = it.att ? nsp : nsp + 1; // dragere på stolper
+  const Lj = D/nsp, ccU = toU(it.cc/10), eps = 0.5;
+  const joists = []; for(let x = -w/2 + eps; x < w/2; x += ccU){ chords(P0, 'x', x).forEach(([a,b]) => joists.push({x, a, b, L:(b-a)*u2m})); }
+  chords(P0, 'x', w/2 - eps).forEach(([a,b]) => joists.push({x:w/2-eps, a, b, L:(b-a)*u2m}));
+  const nj = joists.length, joistLm = joists.reduce((t,j) => t + j.L, 0), joistMax = joists.reduce((t,j) => Math.max(t, j.L), 0);
+  // dragere: ved huset (veggbjelke eller egne stolper), mellom, og ytterst 20 cm inn fra kanten; kuttet etter omrisset
+  const inset = Math.min(toU(20), h/4), y0 = -h/2 + (it.att ? eps : inset), y1 = h/2 - inset;
   const trib = nsp >= 2 ? Lj : Lj/2, wbG = trib*G + Bm.b*Bm.h*1e-6*C24.rho, wbQ = trib*Q, wbS = trib*s;
-  let npo = it.npo > 1 ? it.npo : 0, br = null;
-  if(!npo){ for(npo=2; npo<13; npo++){ br = beamCheck(Bm.b, Bm.h, B/(npo-1), wbG, wbQ, wbS); if(br.u <= 1) break; } if(npo===13) npo = 12; }
-  else br = beamCheck(Bm.b, Bm.h, B/(npo-1), wbG, wbQ, wbS);
-  const Lb = B/(npo-1), Lp = Math.max(0.3, it.hgt/100 - (Bm.h + J.h + it.board)/1000), ke = (it.att || it.braced) ? 1 : 2;
-  const pr = postCheck(P.b, P.h, Lp, ke, wbG, wbQ, wbS, Lb), nposts = npo*nbp;
+  let Lmax = it.npo > 0 ? it.npo : 0.3; if(!(it.npo > 0)){ while(Lmax < 6 && beamCheck(Bm.b, Bm.h, Lmax+0.05, wbG, wbQ, wbS).u <= 1) Lmax += 0.05; }
+  const beams = []; let nposts = 0, beamLm = 0, spanMax = 0, ledgerLm = 0;
+  for(let i=0; i<=nsp; i++){ const y = y0 + (y1-y0)*i/nsp, segs = chords(P0, 'y', y);
+    if(i===0 && it.att){ segs.forEach(([a,b]) => ledgerLm += (b-a)*u2m); beams.push({y, segs, ledger:true}); continue; }
+    const out = segs.map(([a,b]) => { const Ls = (b-a)*u2m, pin = Math.min(toU(10), (b-a)/4), n = Math.max(2, Math.ceil((Ls - 2*pin*u2m)/Lmax - 1e-9) + 1);
+      const xs = []; for(let j=0; j<n; j++) xs.push(a + pin + (b-a-2*pin)*j/(n-1)); const sp = (Ls - 2*pin*u2m)/(n-1);
+      nposts += n; beamLm += Ls; spanMax = Math.max(spanMax, sp); return {a, b, xs, Ls, sp}; });
+    beams.push({y, segs:out, ledger:false}); }
+  const nbp = beams.filter(b => !b.ledger).length, Lb = spanMax || Lmax;
+  const br = beamCheck(Bm.b, Bm.h, Lb, wbG, wbQ, wbS);
+  const Lp = Math.max(0.3, it.hgt/100 - (Bm.h + J.h + it.board)/1000), ke = (it.att || it.braced) ? 1 : 2;
+  const pr = postCheck(P.b, P.h, Lp, ke, wbG, wbQ, wbS, Lb);
   const gp = +it.gp > 0 ? +it.gp : 150, fA = pr.N/gp, fSide = Math.sqrt(fA)*100;
   const ledger = it.att ? Math.max(...COMBOS.map(c => (c.g*G + c.q*Q + c.s*s)*Lj/2)) : 0;
   const qd = Math.max(...COMBOS.map(c => c.g*G + c.q*Q + c.s*s));
   const boardsOk = (BOARDS[it.board] || 600) >= it.cc, rail = it.hgt >= 50;
-  const nboards = Math.ceil(D/0.126), boardLm = nboards*B;
-  return {B, D, A:B*D, cc, J, Bm, P, kom, skAuto, sk, s, G, Q, qd, nsp, jr, Lj, nj, nbp, trib, npo, br, Lb, Lp, ke, pr, nposts, fA, fSide, ledger, boardsOk, rail, nboards, boardLm,
+  const pitch = toU(12.6); let nboards = 0, boardLm = 0; for(let y = -h/2 + pitch/2; y < h/2; y += pitch){ chords(P0, 'y', y).forEach(([a,b]) => { nboards++; boardLm += (b-a)*u2m; }); }
+  const A = vArea(P0)*u2m*u2m, screws = Math.ceil(boardLm/cc*2*1.1/100)*100;
+  return {B, D, A, cc, J, Bm, P, kom, skAuto, sk, s, G, Q, qd, nsp, jr, Lj, nj, joists, joistLm, joistMax, beams, nbp, trib, Lmax, Lb, br, Lp, ke, pr, nposts, beamLm, ledgerLm, fA, fSide, ledger, boardsOk, rail, nboards, boardLm, screws,
     ok: jr.u <= 1 && br.u <= 1 && pr.u <= 1 && boardsOk};
 }
 function drawVeranda(it, g){
-  const C = verCalc(it), w = it.w, h = it.h, x = -w/2, y = -h/2, k = 1/view.k, inset = Math.min(toU(20), h/4);
-  el('rect', {x, y, width:w, height:h, class:'vdeck'}, g);
-  const pitch = toU(12.6), ccU = toU(it.cc/10);
-  if(pitch*view.k > 2.5) for(let yy = y+pitch; yy < y+h-0.5; yy += pitch) el('line', {x1:x, y1:yy, x2:x+w, y2:yy, class:'vboard'}, g);
-  if(ccU*view.k > 4) for(let xx = x+ccU; xx < x+w-0.5; xx += ccU) el('line', {x1:xx, y1:y, x2:xx, y2:y+h, class:'vjoist'}, g);
-  const y0 = y + (it.att ? 0 : inset), y1 = y + h - inset, ys = [];
-  for(let i=0; i<=C.nsp; i++) ys.push(y0 + (y1-y0)*i/C.nsp);
-  ys.forEach((yy, i) => { if(i===0 && it.att){ el('line', {x1:x, y1:yy, x2:x+w, y2:yy, class:'vhouse'}, g); return; }
-    el('line', {x1:x+inset/2, y1:yy, x2:x+w-inset/2, y2:yy, class:'vbeam'}, g);
-    const pw = toU(C.P.b/10), ph = toU(C.P.h/10);
-    for(let j=0; j<C.npo; j++){ const px = x + inset + (w-2*inset)*j/(C.npo-1); el('rect', {x:px-pw/2, y:yy-ph/2, width:pw, height:ph, class:'vpost'}, g); } });
+  const C = verCalc(it), h = it.h, k = 1/view.k, pts = it.pts.map(p => p.join(',')).join(' ');
+  el('polygon', {points:pts, class:'vdeck'}, g);
+  const pitch = toU(12.6);
+  if(pitch*view.k > 2.5) for(let y = -h/2 + pitch; y < h/2 - 0.5; y += pitch) chords(it.pts, 'y', y).forEach(([a,b]) => el('line', {x1:a, y1:y, x2:b, y2:y, class:'vboard'}, g));
+  if(toU(it.cc/10)*view.k > 4) C.joists.forEach(j => el('line', {x1:j.x, y1:j.a, x2:j.x, y2:j.b, class:'vjoist'}, g));
+  const pw = toU(C.P.b/10), ph = toU(C.P.h/10);
+  C.beams.forEach(bm => { if(bm.ledger){ bm.segs.forEach(([a,b]) => el('line', {x1:a, y1:-h/2, x2:b, y2:-h/2, class:'vhouse'}, g)); return; }
+    bm.segs.forEach(sg => { el('line', {x1:sg.a, y1:bm.y, x2:sg.b, y2:bm.y, class:'vbeam'}, g);
+      sg.xs.forEach(px => el('rect', {x:px-pw/2, y:bm.y-ph/2, width:pw, height:ph, class:'vpost'}, g)); }); });
   if(!C.ok) el('text', {x:0, y:0, 'text-anchor':'middle', 'dominant-baseline':'central', class:'dim', style:'font-size:'+(11*k)+'px'}, g).textContent = 'bæring holder ikke';
 }
 function verandaSnap(o){ // hussiden festes til nærmeste veggflate
@@ -1016,34 +1055,48 @@ function verandaSnap(o){ // hussiden festes til nærmeste veggflate
   const fx = w.x1 + g.ux*hit.c + nx*w.t/2, fy = w.y1 + g.uy*hit.c + ny*w.t/2;
   o.x = fx + nx*o.h/2; o.y = fy + ny*o.h/2; o.rot = Math.round(Math.atan2(-nx, ny)*180/Math.PI);
 }
-let vTgt = 'w'; // hva neste lasermåling setter på valgt veranda: w (bredde), h (dybde), hgt (høyde over terreng)
+let vTgt = 'side', vSide = 0, vSel = null; // neste lasermåling (side eller høyde), aktiv side og valgt hjørne på valgt veranda
+function vertexDrag(o, e, p, free){ // dra hjørne e til tegningspunktet p, med rutenett og låsing mot nabohjørnene
+  const n = o.pts.length, l = vLocal(o, p.x, p.y); let x = snapU(l.x), y = snapU(l.y);
+  if(!free){ const tol = 9/view.k; [o.pts[(e+n-1)%n], o.pts[(e+1)%n]].forEach(q => { if(Math.abs(l.x-q[0]) < tol) x = q[0]; if(Math.abs(l.y-q[1]) < tol) y = q[1]; }); }
+  o.pts[e] = [x, y]; vNorm(o);
+}
 function verandaMeasure(o, c){
-  const nxt = {w:'h', h:'hgt', hgt:'w'}, lbl = {w:'Bredde', h:'Dybde', hgt:'Høyde over terreng'}, t = vTgt;
-  mutate(() => { if(t==='hgt') o.hgt = c; else o[t] = toU(c); }); vTgt = nxt[t]; render();
-  toast(lbl[t] + ' ' + fmtMeas(c) + '. Neste måling er ' + lbl[vTgt].toLowerCase() + '.');
+  if(vTgt==='hgt'){ mutate(() => { o.hgt = c; }); toast('Høyde over terreng ' + fmtMeas(c)); return; }
+  const n = o.pts.length, k = Math.min(vSide, n-1); mutate(() => setSide(o, k, toU(c))); vSide = (k+1)%n; render();
+  toast('Side ' + (k+1) + ': ' + fmtMeas(c) + '. Neste måling er side ' + (vSide+1) + '.');
 }
 function verName(it){ const vs = S.items.filter(i => i.kind==='veranda'); return it.name || ('Veranda' + (vs.length > 1 ? ' ' + (vs.indexOf(it)+1) : '')); }
 function renderVerandaProps(o, p){
-  const C = verCalc(o), h = s => p.insertAdjacentHTML('beforeend', s);
-  h(`<p class="sel-title">${verName(o)}</p>
-    <div class="row"><label for="pW">Bredde langs huset (${unit})</label><input id="pW" type="number" step="${ustep()}" value="${inVal(o.w)}"></div>
-    <div class="row"><label for="pH">Dybde ut fra huset (${unit})</label><input id="pH" type="number" step="${ustep()}" value="${inVal(o.h)}"></div>
+  const C = verCalc(o), n = o.pts.length, h = s => p.insertAdjacentHTML('beforeend', s); if(vSide >= n) vSide = 0; if(vSel!=null && vSel >= n) vSel = null;
+  const rows = o.pts.map((q, k) => `<div class="rrow${k===vSide?' on':''}" data-k="${k}" role="button" tabindex="0" aria-label="Side ${k+1}"><span class="n">${k+1}</span><span>${Math.abs(q[1]+o.h/2)<1 && Math.abs(o.pts[(k+1)%n][1]+o.h/2)<1 ? 'hus' : ''}</span><span>${ufmt(sideLen(o,k))} ${unit}</span><span class="ex">${vSel===k ? 'hjørne valgt' : ''}</span></div>` +
+    (k===vSide ? `<div class="rdet"><div class="row"><label for="vLen">Lengde (${unit})</label><input id="vLen" type="number" step="${ustep()}" value="${inVal(sideLen(o,k))}"${vTgt==='side'?' class="tgt"':''}></div></div>` : '')).join('');
+  h(`<p class="sel-title">${verName(o)} · ${ufmt(o.w)} × ${ufmt(o.h)}</p>
     <div class="row"><label for="pHgt">Høyde over terreng (${unit})</label><input id="pHgt" type="number" step="${ustep()}" value="${cIn(o.hgt)}"></div>
     <label class="chk"><input id="pAtt" type="checkbox"${o.att?' checked':''}>Festet til husveggen (veggbjelke)</label>
     <label class="chk"><input id="pSnap" type="checkbox"${o.snap!==false?' checked':''}>Fest hussiden til nærmeste vegg</label>
-    ${api()?`<div class="row"><label>Neste måling</label><div class="seg"><button data-vt="w" aria-pressed="${vTgt==='w'}">Bredde</button><button data-vt="h" aria-pressed="${vTgt==='h'}">Dybde</button><button data-vt="hgt" aria-pressed="${vTgt==='hgt'}">Høyde</button></div></div>`:''}
-    <p class="stat">${C.ok ? '<span class="ok">Bæringen holder</span>' : '<span class="bad">Bæringen holder ikke</span>'} med bjelker ${C.J.txt} c/c ${o.cc}, ${C.nbp} drager${C.nbp>1?'e':''} ${C.Bm.txt} og ${C.nposts} stolper ${C.P.txt}.${C.rail ? ' Krever rekkverk.' : ''}${o.hgt > 100 || C.D > 4 ? ' Søknadspliktig.' : ''}</p>
-    <p class="muted">${o.snap!==false ? 'Dra verandaen inntil en vegg, så fester hussiden seg til veggen. «Snu 90°» bytter bredde og dybde. Slå av festingen for å plassere og rotere fritt.' : 'Festingen er av. Dra og roter fritt. Den røde linja er hussiden.'}</p>
+    <div class="row"><label>Form</label><div class="seg"><button data-shape="rect" title="Rektangel">▭</button><button data-shape="lL" title="L-form, vinge til venstre">◰</button><button data-shape="lR" title="L-form, vinge til høyre">◳</button><button id="pMirror" title="Speilvend">⇋</button></div></div>
+    <p class="muted">Dra i hjørnene på tegningen for å forme verandaen. Side 1 er hussiden. Trykk på en side for å skrive inn lengden eller måle den med laseren.</p>
+    <div class="rows">${rows}</div>
+    <div class="btns"><button id="pAddV">Legg til hjørne</button>${vSel!=null && n > 3 ? '<button id="pDelV">Fjern hjørnet</button>' : ''}</div>
+    ${api()?`<div class="row"><label>Neste måling</label><div class="seg"><button data-vt="side" aria-pressed="${vTgt==='side'}">Side ${vSide+1}</button><button data-vt="hgt" aria-pressed="${vTgt==='hgt'}">Høyde</button></div></div>`:''}
+    <p class="stat">${C.ok ? '<span class="ok">Bæringen holder</span>' : '<span class="bad">Bæringen holder ikke</span>'} med bjelker ${C.J.txt} c/c ${o.cc}, ${C.nbp} drager${C.nbp>1?'e':''} ${C.Bm.txt} og ${C.nposts} stolper ${C.P.txt}. Areal ${m2(C.A)}.${C.rail ? ' Krever rekkverk.' : ''}${o.hgt > 100 || C.D > 4 ? ' Søknadspliktig.' : ''}</p>
+    <p class="muted">${o.snap!==false ? '«Snu 90°» dreier formen så en annen side vender mot huset. Slå av festingen for å plassere og rotere fritt.' : 'Festingen er av. Dra og roter fritt. Den røde linja er hussiden.'}</p>
     <div class="btns"><button id="pVer">Bæring og regler</button><button id="pRot">Snu 90°</button><button id="pDup">Dupliser</button><button id="pDel" class="danger">Slett</button></div>`);
-  $('pW').onchange = e => { const v = fromIn(+e.target.value); if(v > 0) mutate(() => { o.w = v; }); };
-  $('pH').onchange = e => { const v = fromIn(+e.target.value); if(v > 0) mutate(() => { o.h = v; }); };
+  const shape = (pts) => mutate(() => { o.pts = pts; vNorm(o); vSel = null; vSide = 0; if(o.snap!==false) verandaSnap(o); });
+  p.querySelectorAll('[data-shape]').forEach(b => b.onclick = () => { const s = b.dataset.shape; shape(s==='rect' ? rectPts(o.w, o.h) : lPts(o.w, o.h, s==='lR')); });
+  $('pMirror').onclick = () => shape(o.pts.map(([x,y]) => [-x,y]).reverse());
+  p.querySelectorAll('.rrow').forEach(b => { b.onclick = () => { vSide = +b.dataset.k; vTgt = 'side'; render(); }; b.onkeydown = e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); b.click(); } }; });
+  if($('vLen')){ $('vLen').onfocus = () => { vTgt = 'side'; }; $('vLen').onchange = e => { const v = fromIn(+e.target.value); if(v > 1) mutate(() => setSide(o, vSide, v)); }; }
+  $('pAddV').onclick = () => mutate(() => { const k = vSide, a = o.pts[k], b = o.pts[(k+1)%n]; o.pts.splice(k+1, 0, [(a[0]+b[0])/2, (a[1]+b[1])/2]); vSel = k+1; });
+  if($('pDelV')) $('pDelV').onclick = () => mutate(() => { o.pts.splice(vSel, 1); vSel = null; vSide = Math.min(vSide, o.pts.length-1); vNorm(o); if(o.snap!==false) verandaSnap(o); });
   $('pHgt').onchange = e => { const v = cFrom(+e.target.value); if(v >= 0) mutate(() => { o.hgt = v; }); };
   $('pAtt').onchange = e => mutate(() => { o.att = e.target.checked; });
   $('pSnap').onchange = e => mutate(() => { o.snap = e.target.checked; if(o.snap) verandaSnap(o); });
   p.querySelectorAll('[data-vt]').forEach(b => b.onclick = () => { vTgt = b.dataset.vt; render(); });
   $('pVer').onclick = () => openVer(o.id);
-  $('pRot').onclick = () => mutate(() => { if(o.snap!==false){ const t = o.w; o.w = o.h; o.h = t; verandaSnap(o); } else o.rot = (o.rot + 90) % 360; });
-  $('pDup').onclick = () => mutate(() => { const c = Object.assign({}, o, {id:nid('i'), x:o.x+15, y:o.y+15}); S.items.push(c); sel = {type:'item', id:c.id}; });
+  $('pRot').onclick = () => mutate(() => { if(o.snap!==false){ o.pts = o.pts.map(([x,y]) => [-y, x]); vNorm(o); verandaSnap(o); } else o.rot = (o.rot + 90) % 360; });
+  $('pDup').onclick = () => mutate(() => { const c = Object.assign({}, o, {id:nid('i'), x:o.x+15, y:o.y+15, pts:o.pts.map(q => q.slice())}); S.items.push(c); sel = {type:'item', id:c.id}; });
   $('pDel').onclick = () => mutate(() => { S.items = S.items.filter(x => x!==o); sel = null; });
 }
 let verTgt = null; // veranda som vises øverst i arket
@@ -1095,8 +1148,7 @@ function verCards(it){
   return `<div class="card${tgt?' tgtc':''}" data-v="${it.id}">
     <h2>${verName(it)} · ${kn(C.B,2)} × ${kn(C.D,2)} m · ${m2(C.A)}</h2>
     <div class="row"><label>Navn</label><input data-f="name" type="text" value="${(it.name||'').replace(/"/g,'&quot;')}" placeholder="${verName(it)}"></div>
-    <div class="row"><label>Bredde langs huset (${U})</label><input data-f="w" type="number" step="${ustep()}" value="${inVal(it.w)}"></div>
-    <div class="row"><label>Dybde ut fra huset (${U})</label><input data-f="h" type="number" step="${ustep()}" value="${inVal(it.h)}"></div>
+    <p class="muted">Bredde ${kn(C.B)} m langs huset, dybde ${kn(C.D)} m, ${it.pts.length} hjørner. Formen endres i panelet ved tegningen.</p>
     <div class="row"><label>Høyde over terreng (${U})</label><input data-f="hgt" type="number" step="${ustep()}" value="${cIn(it.hgt)}"></div>
     <label class="chk"><input data-f="att" type="checkbox"${it.att?' checked':''}>Festet til husveggen med veggbjelke</label>
     ${it.att ? '' : `<label class="chk"><input data-f="braced" type="checkbox"${it.braced?' checked':''}>Avstivet med skråstag</label>`}
@@ -1118,14 +1170,14 @@ function verCards(it){
     ${sec('Bjelke (mm)', JOISTS, 'joist', it.joist, v => v.replace(/x/g,'×'))}
     ${sec('Avstand c/c (mm)', CCS, 'cc', it.cc)}
     ${sec('Antall felt', [0,1,2,3,4,5,6], 'nsp', it.nsp, v => v===0 ? 'Automatisk (' + C.nsp + ')' : v)}
-    <div class="kv"><span>Spennvidde per felt</span><span>${kn(C.Lj)} m</span><span>Antall bjelker</span><span>${C.nj} stk à ${kn(C.D)} m</span><span>Last per bjelke (dim.)</span><span>${kn(C.jr.wmax)} kN/m</span></div>
+    <div class="kv"><span>Spennvidde per felt</span><span>${kn(C.Lj)} m</span><span>Antall bjelker</span><span>${C.nj} stk, lengste ${kn(C.joistMax)} m</span><span>Last per bjelke (dim.)</span><span>${kn(C.jr.wmax)} kN/m</span></div>
     <div class="util">${ubar('Moment', C.jr.um)}${ubar('Skjær', C.jr.uv)}${ubar('Nedbøyning', C.jr.ud)}</div>
     <p class="stat">${C.jr.u <= 1 ? '<span class="ok">Holder.</span>' : '<span class="bad">Holder ikke.</span> Velg større bjelke, tettere c/c eller flere felt.'} Nedbøyning ${kn(C.jr.inst,1)} mm av korttidslast (grense ${kn(C.Lj*1000/300,0)} mm) og ${kn(C.jr.fin,1)} mm over tid (grense ${kn(C.Lj*1000/250,0)} mm).</p>
   </div>
   <div class="card"><h2>Dragere</h2>
     ${sec('Drager (mm)', BEAMS, 'beam', it.beam, v => v.replace(/x/g,'×'))}
-    ${sec('Stolper per drager', [0,2,3,4,5,6,7,8,9,10], 'npo', it.npo, v => v===0 ? 'Automatisk (' + C.npo + ')' : v)}
-    <div class="kv"><span>Dragere på stolper</span><span>${C.nbp} stk à ${kn(C.B)} m${it.att ? ' + veggbjelke' : ''}</span><span>Avstand mellom stolpene</span><span>${kn(C.Lb)} m</span><span>Last per drager (dim.)</span><span>${kn(C.br.wmax)} kN/m</span></div>
+    ${sec('Største avstand mellom stolper', [0,1,1.2,1.5,1.8,2,2.4,3], 'npo', it.npo, v => v===0 ? 'Automatisk (' + kn(C.Lmax) + ' m)' : kn(v,1) + ' m')}
+    <div class="kv"><span>Dragere på stolper</span><span>${C.nbp} stk, i alt ${kn(C.beamLm,1)} m${it.att ? ' + veggbjelke ' + kn(C.ledgerLm,1) + ' m' : ''}</span><span>Største avstand mellom stolpene</span><span>${kn(C.Lb)} m</span><span>Last per drager (dim.)</span><span>${kn(C.br.wmax)} kN/m</span></div>
     <div class="util">${ubar('Moment', C.br.um)}${ubar('Skjær', C.br.uv)}${ubar('Nedbøyning', C.br.ud)}</div>
     <p class="stat">${C.br.u <= 1 ? '<span class="ok">Holder.</span>' : '<span class="bad">Holder ikke.</span> Velg større drager eller flere stolper.'} Dragerne ligger under bjelkene, den ytterste ca. 20 cm inn fra kanten. ${C.Bm.n > 1 ? 'Dobbel drager skrus eller boltes sammen med forskjøvne skjøter over stolpene.' : ''}</p>
   </div>
@@ -1144,11 +1196,11 @@ function verCards(it){
     <p class="muted">Reglene er hentet fra SAK10 § 4-1 og TEK17 §§ 12-11 og 12-15 slik de gjelder i 2026. Sjekk alltid kommuneplanen, reguleringsplanen og avstand til nabogrense, vann- og avløpsledninger og vei. Er du i tvil, spør byggesaksavdelingen i kommunen.</p>
   </div>
   <div class="card"><h2>Materialliste</h2>
-    <div class="kv"><span>Bjelker ${C.J.txt}</span><span>${C.nj} stk à ${kn(C.D)} m = ${kn(C.nj*C.D,1)} m</span>
-    <span>Drager ${C.Bm.txt}</span><span>${C.nbp*C.Bm.n} stk à ${kn(C.B)} m = ${kn(C.nbp*C.Bm.n*C.B,1)} m${it.att ? `<br>+ veggbjelke 48×${C.J.h} à ${kn(C.B)} m` : ''}</span>
+    <div class="kv"><span>Bjelker ${C.J.txt}</span><span>${C.nj} stk, i alt ${kn(C.joistLm,1)} m (lengste ${kn(C.joistMax)} m)</span>
+    <span>Drager ${C.Bm.txt}</span><span>${C.Bm.n > 1 ? C.Bm.n + ' × ' : ''}${kn(C.beamLm,1)} m${it.att ? `<br>+ veggbjelke 48×${C.J.h}, ${kn(C.ledgerLm,1)} m` : ''}</span>
     <span>Stolper ${C.P.txt}</span><span>${C.nposts} stk à ca. ${kn(C.Lp + 0.1,1)} m</span>
-    <span>Terrassebord ${it.board}×120</span><span>${C.nboards} stk à ${kn(C.B)} m = ${kn(C.boardLm,0)} m</span>
-    <span>Terrasseskruer</span><span>ca. ${Math.ceil(C.nboards*C.nj*2*1.1/100)*100} stk</span>
+    <span>Terrassebord ${it.board}×120</span><span>${C.nboards} lengder, i alt ${kn(C.boardLm,0)} m</span>
+    <span>Terrasseskruer</span><span>ca. ${C.screws} stk</span>
     <span>Stolpesko / fundamenter</span><span>${C.nposts} stk</span></div>
     <p class="muted">Lengdene er uten kapp og svinn. Kjøp litt ekstra, og velg standardlengder som passer.</p>
   </div>
@@ -1195,7 +1247,7 @@ function addThing(k){
     mutate(()=>{ const l={id:nid('l'),text:'Rom',x:c.x,y:c.y}; S.labels.push(l); sel={type:'label',id:l.id}; });
     setTimeout(()=>{ const t=$('pTxt'); if(t){ t.focus(); t.select(); } },0);
   } else {
-    mutate(()=>{ const [w,h] = SIZES[k]; const it = {id:nid('i'),kind:k,x:c.x,y:c.y,w:toU(w),h:toU(h),rot:0}; if(k==='veranda'){ vcfg(it); verandaSnap(it); } S.items.push(it); sel={type:'item',id:it.id}; });
+    mutate(()=>{ const [w,h] = SIZES[k]; const it = {id:nid('i'),kind:k,x:c.x,y:c.y,w:toU(w),h:toU(h),rot:0}; if(k==='veranda'){ vcfg(it); if(it.snap!==false) verandaSnap(it); } S.items.push(it); sel={type:'item',id:it.id}; });
     if(k==='veranda') toast('Dra verandaen inntil husveggen. «Bæring og regler» gir forslag til bjelker, dragere og stolper.');
   }
   setMode('select');
@@ -1251,6 +1303,7 @@ svg.addEventListener('pointerdown', e => {
   if(!tgt || e.button===1){ drag={kind:'pan',sx:e.clientX,sy:e.clientY,tx:view.tx,ty:view.ty,moved:false}; svg.classList.add('pan'); return; }
   const t = tgt.dataset.t, id = tgt.dataset.id;
   if(t==='dend'){ const d=find(S.dims,id); drag={kind:'dend',d,e:+tgt.dataset.e,prev,moved:false}; return; }
+  if(t==='vend'){ const it=find(S.items,id); vSel=+tgt.dataset.e; sel={type:'item',id}; drag={kind:'vend',o:it,e:vSel,prev,moved:false}; render(); return; }
   if(t==='end'){ const w=find(S.walls,id); const e1=+tgt.dataset.e; const others=linked(w)[e1]; drag={kind:'end',w,e:e1,others,prev,moved:false}; return; }
   sel = {type: t==='op'?'op':t, id}; const o = find(byType(sel.type), id);
   if(t==='wall') drag={kind:'wall',w:o,p0:p,orig:{x1:o.x1,y1:o.y1,x2:o.x2,y2:o.y2},lk:linked(o),prev,moved:false};
@@ -1270,6 +1323,7 @@ svg.addEventListener('pointermove', e => {
   if(drag.kind==='measure'){ let s=measureSnap(p.x,p.y); if(!e.altKey && !s.snapped) s=ortho(measure.x1,measure.y1,s); else if(!e.altKey){ const o=ortho(measure.x1,measure.y1,{x:s.x,y:s.y,snapped:false}); if(Math.abs(o.x-s.x)<1.5&&Math.abs(o.y-s.y)<1.5) s=o; } measure.x2=s.x; measure.y2=s.y; render(); return; }
   if(drag.kind==='newdim' || drag.kind==='dend'){ const d=drag.d; const end = drag.kind==='newdim'?2:drag.e; const ax=end===1?d.x2:d.x1, ay=end===1?d.y2:d.y1;
     let q=measureSnap(p.x,p.y); if(!e.altKey && !q.snapped) q=ortho(ax,ay,q); if(end===1){d.x1=q.x;d.y1=q.y;} else {d.x2=q.x;d.y2=q.y;} render(); return; }
+  if(drag.kind==='vend'){ vertexDrag(drag.o, drag.e, p, e.altKey); render(); return; }
   if(drag.kind==='dimoff'){ const G=dimGeom(drag.o); drag.o.off = snapU(drag.off0 + (p.x-drag.p0.x)*G.nx + (p.y-drag.p0.y)*G.ny); render(); return; }
   if(drag.kind==='newwall'){ const s = ortho(drag.w.x1,drag.w.y1,snapPoint(p.x,p.y,[[drag.w,2]])); drag.w.x2=s.x; drag.w.y2=s.y; sel={type:'wall',id:drag.w.id}; }
   else if(drag.kind==='end'){ const w=drag.w; const ax = drag.e===1?w.x2:w.x1, ay = drag.e===1?w.y2:w.y1;
@@ -1292,7 +1346,7 @@ function endPointer(e){
   else if(drag.kind==='measure'){ render(); }
   else if(drag.kind==='newdim'){ const d=drag.d; if(Math.hypot(d.x2-d.x1,d.y2-d.y1)<toU(5)){ S.dims=S.dims.filter(x=>x!==d); sel=null; } else commit(drag.prev); render(); }
   else if(drag.kind==='newwall'){ const g=geom(drag.w); if(g.L<toU(10)){ S.walls=S.walls.filter(w=>w!==drag.w); sel=null; render(); } else { commit(drag.prev); sel={type:'wall',id:drag.w.id}; render(); } }
-  else if(drag.moved){ commit(drag.prev); }
+  else if(drag.moved){ if(drag.kind==='vend' && drag.o.snap!==false) verandaSnap(drag.o); commit(drag.prev); render(); }
   drag=null;
 }
 svg.addEventListener('pointerup', endPointer); svg.addEventListener('pointercancel', endPointer);
