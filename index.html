@@ -238,7 +238,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web bbadc6c2e2</p>
+      <p class="muted" id="verTxt">Versjon web 14fc0edafc</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -948,7 +948,7 @@ const KMOD = {M:0.65, S:0.70}; // middels lang (nyttelast) og kortvarig (snø) i
 const PSI0 = 0.7, PSI2_A = 0.3, PSI2_S = 0.2;
 // Lastkombinasjoner i bruddgrense (NS-EN 1990 NA, 6.10a/6.10b): faktorer for egenlast, nyttelast og snø, med kmod for korteste last i kombinasjonen
 const COMBOS = [{g:1.2,q:1.5,s:0,k:KMOD.M,n:'nyttelast alene'}, {g:1.2,q:1.5,s:1.05,k:KMOD.S,n:'nyttelast + snø'}, {g:1.2,q:1.05,s:1.5,k:KMOD.S,n:'snø + nyttelast'}, {g:1.35,q:1.05,s:1.05,k:KMOD.S,n:'6.10a'}];
-function vcfg(it){ const d = {hgt:60, att:true, cc:600, joist:'48x198', beam:'2x48x198', post:'98x98', board:28, kom:'', alt:0, sk:null, q:4, nsp:0, npo:0, gp:150, braced:true, name:'', snap:true};
+function vcfg(it){ const d = {hgt:60, att:true, cc:600, joist:'48x198', beam:'2x48x198', post:'98x98', board:28, kom:'', alt:0, sk:null, q:4, nsp:0, npo:0, gp:150, braced:true, name:'', snap:true, bdir:'house'};
   for(const k in d) if(it[k]===undefined) it[k] = d[k];
   if(!it.pts || it.pts.length < 3) it.pts = rectPts(it.w, it.h); return it; }
 // Omrisset er en mangekant i lokale koordinater (tegningsenheter) rundt midtpunktet; hussiden ligger langs y = -h/2.
@@ -1000,26 +1000,28 @@ function postCheck(b, h, Lp, ke, wG, wQ, wS, Lb){
   return {u, kc, lam, N};
 }
 function verCalc(it){
-  vcfg(it); const u2m = S.scale/100, B = it.w*u2m, D = it.h*u2m, cc = it.cc/1000, P0 = it.pts, w = it.w, h = it.h;
+  vcfg(it); const u2m = S.scale/100, B = it.w*u2m, D = it.h*u2m, cc = it.cc/1000;
+  // Regneramme: bjelkene går langs ramme-y, dragerne langs ramme-x. Med bord ut fra huset byttes aksene, og ingen veggbjelke bærer.
+  const out = it.bdir==='out', attS = it.att && !out, P0 = out ? it.pts.map(([x,y]) => [y,x]) : it.pts, w = out ? it.h : it.w, h = out ? it.w : it.h, Df = h*u2m;
   const J = secOf(it.joist), Bm = secOf(it.beam), P = secOf(it.post);
   const kom = SNOW.find(k => k.n===it.kom) || null, skAuto = snowAt(kom, +it.alt||0), sk = it.sk!=null ? it.sk : skAuto;
   const s = sk!=null ? 0.8*sk : 0; // snø på flatt dekke: formfaktor 0,8, Ce = Ct = 1,0
   const G = it.board/1000*C24.rho + J.b*J.h*1e-6*C24.rho/cc + 0.10, Q = +it.q || 0;
   // bjelkelag: antall felt (dragere) velges automatisk til den lengste bjelken holder
   let nsp = it.nsp > 0 ? it.nsp : 0, jr = null;
-  if(!nsp){ for(nsp=1; nsp<8; nsp++){ jr = beamCheck(J.b, J.h, D/nsp, G*cc, Q*cc, s*cc); if(jr.u <= 1) break; } if(nsp===8) nsp = 7; }
-  else jr = beamCheck(J.b, J.h, D/nsp, G*cc, Q*cc, s*cc);
-  const Lj = D/nsp, ccU = toU(it.cc/10), eps = 0.5;
+  if(!nsp){ for(nsp=1; nsp<8; nsp++){ jr = beamCheck(J.b, J.h, Df/nsp, G*cc, Q*cc, s*cc); if(jr.u <= 1) break; } if(nsp===8) nsp = 7; }
+  else jr = beamCheck(J.b, J.h, Df/nsp, G*cc, Q*cc, s*cc);
+  const Lj = Df/nsp, ccU = toU(it.cc/10), eps = 0.5;
   const joists = []; for(let x = -w/2 + eps; x < w/2; x += ccU){ chords(P0, 'x', x).forEach(([a,b]) => joists.push({x, a, b, L:(b-a)*u2m})); }
   chords(P0, 'x', w/2 - eps).forEach(([a,b]) => joists.push({x:w/2-eps, a, b, L:(b-a)*u2m}));
   const nj = joists.length, joistLm = joists.reduce((t,j) => t + j.L, 0), joistMax = joists.reduce((t,j) => Math.max(t, j.L), 0);
   // dragere: ved huset (veggbjelke eller egne stolper), mellom, og ytterst 20 cm inn fra kanten; kuttet etter omrisset
-  const inset = Math.min(toU(20), h/4), y0 = -h/2 + (it.att ? eps : inset), y1 = h/2 - inset;
+  const inset = Math.min(toU(20), h/4), y0 = -h/2 + (attS ? eps : inset), y1 = h/2 - inset;
   const trib = nsp >= 2 ? Lj : Lj/2, wbG = trib*G + Bm.b*Bm.h*1e-6*C24.rho, wbQ = trib*Q, wbS = trib*s;
   let Lmax = it.npo > 0 ? it.npo : 0.3; if(!(it.npo > 0)){ while(Lmax < 6 && beamCheck(Bm.b, Bm.h, Lmax+0.05, wbG, wbQ, wbS).u <= 1) Lmax += 0.05; }
   const beams = []; let nposts = 0, beamLm = 0, spanMax = 0, ledgerLm = 0;
   for(let i=0; i<=nsp; i++){ const y = y0 + (y1-y0)*i/nsp, segs = chords(P0, 'y', y);
-    if(i===0 && it.att){ segs.forEach(([a,b]) => ledgerLm += (b-a)*u2m); beams.push({y, segs, ledger:true}); continue; }
+    if(i===0 && attS){ segs.forEach(([a,b]) => ledgerLm += (b-a)*u2m); beams.push({y, segs, ledger:true}); continue; }
     const out = segs.map(([a,b]) => { const Ls = (b-a)*u2m, pin = Math.min(toU(10), (b-a)/4), n = Math.max(2, Math.ceil((Ls - 2*pin*u2m)/Lmax - 1e-9) + 1);
       const xs = []; for(let j=0; j<n; j++) xs.push(a + pin + (b-a-2*pin)*j/(n-1)); const sp = (Ls - 2*pin*u2m)/(n-1);
       nposts += n; beamLm += Ls; spanMax = Math.max(spanMax, sp); return {a, b, xs, Ls, sp}; });
@@ -1029,24 +1031,25 @@ function verCalc(it){
   const Lp = Math.max(0.3, it.hgt/100 - (Bm.h + J.h + it.board)/1000), ke = (it.att || it.braced) ? 1 : 2;
   const pr = postCheck(P.b, P.h, Lp, ke, wbG, wbQ, wbS, Lb);
   const gp = +it.gp > 0 ? +it.gp : 150, fA = pr.N/gp, fSide = Math.sqrt(fA)*100;
-  const ledger = it.att ? Math.max(...COMBOS.map(c => (c.g*G + c.q*Q + c.s*s)*Lj/2)) : 0;
+  const ledger = attS ? Math.max(...COMBOS.map(c => (c.g*G + c.q*Q + c.s*s)*Lj/2)) : 0;
   const qd = Math.max(...COMBOS.map(c => c.g*G + c.q*Q + c.s*s));
   const boardsOk = (BOARDS[it.board] || 600) >= it.cc, rail = it.hgt >= 50;
   const pitch = toU(12.6); let nboards = 0, boardLm = 0; for(let y = -h/2 + pitch/2; y < h/2; y += pitch){ chords(P0, 'y', y).forEach(([a,b]) => { nboards++; boardLm += (b-a)*u2m; }); }
   const A = vArea(P0)*u2m*u2m, screws = Math.ceil(boardLm/cc*2*1.1/100)*100;
-  return {B, D, A, cc, J, Bm, P, kom, skAuto, sk, s, G, Q, qd, nsp, jr, Lj, nj, joists, joistLm, joistMax, beams, nbp, trib, Lmax, Lb, br, Lp, ke, pr, nposts, beamLm, ledgerLm, fA, fSide, ledger, boardsOk, rail, nboards, boardLm, screws,
+  return {B, D, A, out, attS, cc, J, Bm, P, kom, skAuto, sk, s, G, Q, qd, nsp, jr, Lj, nj, joists, joistLm, joistMax, beams, nbp, trib, Lmax, Lb, br, Lp, ke, pr, nposts, beamLm, ledgerLm, fA, fSide, ledger, boardsOk, rail, nboards, boardLm, screws,
     ok: jr.u <= 1 && br.u <= 1 && pr.u <= 1 && boardsOk};
 }
 function drawVeranda(it, g){
-  const C = verCalc(it), h = it.h, k = 1/view.k, pts = it.pts.map(p => p.join(',')).join(' ');
-  el('polygon', {points:pts, class:'vdeck'}, g);
-  const pitch = toU(12.6);
-  if(pitch*view.k > 2.5) for(let y = -h/2 + pitch; y < h/2 - 0.5; y += pitch) chords(it.pts, 'y', y).forEach(([a,b]) => el('line', {x1:a, y1:y, x2:b, y2:y, class:'vboard'}, g));
-  if(toU(it.cc/10)*view.k > 4) C.joists.forEach(j => el('line', {x1:j.x, y1:j.a, x2:j.x, y2:j.b, class:'vjoist'}, g));
+  const C = verCalc(it), k = 1/view.k, M = C.out ? (x, y) => [y, x] : (x, y) => [x, y], H = C.out ? it.w : it.h;
+  const ln = (x1, y1, x2, y2, cls) => { const a = M(x1, y1), b = M(x2, y2); el('line', {x1:a[0], y1:a[1], x2:b[0], y2:b[1], class:cls}, g); };
+  el('polygon', {points:it.pts.map(p => p.join(',')).join(' '), class:'vdeck'}, g);
+  const pitch = toU(12.6), P0 = C.out ? it.pts.map(([x,y]) => [y,x]) : it.pts;
+  if(pitch*view.k > 2.5) for(let y = -H/2 + pitch; y < H/2 - 0.5; y += pitch) chords(P0, 'y', y).forEach(([a,b]) => ln(a, y, b, y, 'vboard'));
+  if(toU(it.cc/10)*view.k > 4) C.joists.forEach(j => ln(j.x, j.a, j.x, j.b, 'vjoist'));
   const pw = toU(C.P.b/10), ph = toU(C.P.h/10);
-  C.beams.forEach(bm => { if(bm.ledger){ bm.segs.forEach(([a,b]) => el('line', {x1:a, y1:-h/2, x2:b, y2:-h/2, class:'vhouse'}, g)); return; }
-    bm.segs.forEach(sg => { el('line', {x1:sg.a, y1:bm.y, x2:sg.b, y2:bm.y, class:'vbeam'}, g);
-      sg.xs.forEach(px => el('rect', {x:px-pw/2, y:bm.y-ph/2, width:pw, height:ph, class:'vpost'}, g)); }); });
+  C.beams.forEach(bm => { if(bm.ledger){ bm.segs.forEach(([a,b]) => ln(a, -H/2, b, -H/2, 'vhouse')); return; }
+    bm.segs.forEach(sg => { ln(sg.a, bm.y, sg.b, bm.y, 'vbeam');
+      sg.xs.forEach(px => { const c = M(px, bm.y); el('rect', {x:c[0]-pw/2, y:c[1]-ph/2, width:pw, height:ph, class:'vpost'}, g); }); }); });
   if(!C.ok) el('text', {x:0, y:0, 'text-anchor':'middle', 'dominant-baseline':'central', class:'dim', style:'font-size:'+(11*k)+'px'}, g).textContent = 'bæring holder ikke';
 }
 function verandaSnap(o){ // hussiden festes til nærmeste veggflate
@@ -1075,6 +1078,7 @@ function renderVerandaProps(o, p){
     <div class="row"><label for="pHgt">Høyde over terreng (${unit})</label><input id="pHgt" type="number" step="${ustep()}" value="${cIn(o.hgt)}"></div>
     <label class="chk"><input id="pAtt" type="checkbox"${o.att?' checked':''}>Festet til husveggen (veggbjelke)</label>
     <label class="chk"><input id="pSnap" type="checkbox"${o.snap!==false?' checked':''}>Fest hussiden til nærmeste vegg</label>
+    <div class="row"><label>Bordretning</label><div class="seg"><button data-bdir="house" aria-pressed="${o.bdir!=='out'}">Langs huset</button><button data-bdir="out" aria-pressed="${o.bdir==='out'}">Ut fra huset</button></div></div>
     <div class="row"><label>Form</label><div class="seg"><button data-shape="rect" title="Rektangel">▭</button><button data-shape="lL" title="L-form, vinge til venstre">◰</button><button data-shape="lR" title="L-form, vinge til høyre">◳</button><button id="pMirror" title="Speilvend">⇋</button></div></div>
     <p class="muted">Dra i hjørnene på tegningen for å forme verandaen. Side 1 er hussiden. Trykk på en side for å skrive inn lengden eller måle den med laseren.</p>
     <div class="rows">${rows}</div>
@@ -1085,6 +1089,7 @@ function renderVerandaProps(o, p){
     <div class="btns"><button id="pVer">Bæring og regler</button><button id="pRot">Snu 90°</button><button id="pDup">Dupliser</button><button id="pDel" class="danger">Slett</button></div>`);
   const shape = (pts) => mutate(() => { o.pts = pts; vNorm(o); vSel = null; vSide = 0; if(o.snap!==false) verandaSnap(o); });
   p.querySelectorAll('[data-shape]').forEach(b => b.onclick = () => { const s = b.dataset.shape; shape(s==='rect' ? rectPts(o.w, o.h) : lPts(o.w, o.h, s==='lR')); });
+  p.querySelectorAll('[data-bdir]').forEach(b => b.onclick = () => mutate(() => { o.bdir = b.dataset.bdir; }));
   $('pMirror').onclick = () => shape(o.pts.map(([x,y]) => [-x,y]).reverse());
   p.querySelectorAll('.rrow').forEach(b => { b.onclick = () => { vSide = +b.dataset.k; vTgt = 'side'; render(); }; b.onkeydown = e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); b.click(); } }; });
   if($('vLen')){ $('vLen').onfocus = () => { vTgt = 'side'; }; $('vLen').onchange = e => { const v = fromIn(+e.target.value); if(v > 1) mutate(() => setSide(o, vSide, v)); }; }
@@ -1140,7 +1145,8 @@ function verCards(it){
     if(C.D > 4) rules.push(['bad', `Dybden ${kn(C.D,2)} m er mer enn 4,0 m ut fra fasadelivet: unntaket i SAK10 § 4-1 bokstav d gjelder ikke, og verandaen er søknadspliktig.`]); }
   if(C.rail) rules.push([it.hgt > 300 ? 'bad' : 'warn', `Nivåforskjell ${kn(it.hgt/100,2)} m til terrenget: rekkverk kreves når forskjellen er 0,5 m eller mer (TEK17 § 12-11). Høyde minst 1,0 m målt fra dekket, åpninger høyst 0,10 m opp til minst 0,75 m, og uten liggende spiler som barn kan klatre i (TEK17 § 12-15).${it.hgt > 300 ? '' : ' Nivåforskjell under 3,0 m kan også sikres på annen forsvarlig måte, for eksempel fast plantekasse.'}`]);
   else rules.push(['ok', 'Nivåforskjell under 0,5 m: rekkverk er ikke påkrevd (TEK17 § 12-11).']);
-  if(!it.att) rules.push(['warn', 'Frittstående veranda må avstives mot sideveis bevegelse med skråstag eller innspente stolper. ' + (it.braced ? 'Regnet som avstivet.' : 'Regnet som uavstivet (dobbel knekklengde på stolpene).')]);
+  if(C.out) rules.push(['warn', 'Med bord ut fra huset går dragerne ut fra huset, og alle står på egne stolper, også ved veggen. Husveggen bærer ikke dekket' + (it.att ? ', men verandaen festes til huset for avstivning.' : '.')]);
+  else if(!it.att) rules.push(['warn', 'Frittstående veranda må avstives mot sideveis bevegelse med skråstag eller innspente stolper. ' + (it.braced ? 'Regnet som avstivet.' : 'Regnet som uavstivet (dobbel knekklengde på stolpene).')]);
   else rules.push(['warn', `Veggbjelken bærer ${kn(C.ledger,1)} kN per meter (dimensjonerende). Fest den med gjennomgående bolter eller godkjente skruer i husets bærende konstruksjon, med beslag eller avstandsskiver så vann ikke blir stående mot kledningen. Mange foretrekker egne stolper også ved huset for å unngå fuktskader.`]);
   rules.push(['warn', 'Fundamentene må gå til frostfri dybde eller stå på drenerende masser. Bruk stolpesko eller beslag som løfter stolpen fra betongen.']);
   const gov = C.jr.gov.n;
@@ -1177,7 +1183,7 @@ function verCards(it){
   <div class="card"><h2>Dragere</h2>
     ${sec('Drager (mm)', BEAMS, 'beam', it.beam, v => v.replace(/x/g,'×'))}
     ${sec('Største avstand mellom stolper', [0,1,1.2,1.5,1.8,2,2.4,3], 'npo', it.npo, v => v===0 ? 'Automatisk (' + kn(C.Lmax) + ' m)' : kn(v,1) + ' m')}
-    <div class="kv"><span>Dragere på stolper</span><span>${C.nbp} stk, i alt ${kn(C.beamLm,1)} m${it.att ? ' + veggbjelke ' + kn(C.ledgerLm,1) + ' m' : ''}</span><span>Største avstand mellom stolpene</span><span>${kn(C.Lb)} m</span><span>Last per drager (dim.)</span><span>${kn(C.br.wmax)} kN/m</span></div>
+    <div class="kv"><span>Dragere på stolper</span><span>${C.nbp} stk, i alt ${kn(C.beamLm,1)} m${C.attS ? ' + veggbjelke ' + kn(C.ledgerLm,1) + ' m' : ''}</span><span>Største avstand mellom stolpene</span><span>${kn(C.Lb)} m</span><span>Last per drager (dim.)</span><span>${kn(C.br.wmax)} kN/m</span></div>
     <div class="util">${ubar('Moment', C.br.um)}${ubar('Skjær', C.br.uv)}${ubar('Nedbøyning', C.br.ud)}</div>
     <p class="stat">${C.br.u <= 1 ? '<span class="ok">Holder.</span>' : '<span class="bad">Holder ikke.</span> Velg større drager eller flere stolper.'} Dragerne ligger under bjelkene, den ytterste ca. 20 cm inn fra kanten. ${C.Bm.n > 1 ? 'Dobbel drager skrus eller boltes sammen med forskjøvne skjøter over stolpene.' : ''}</p>
   </div>
@@ -1190,14 +1196,15 @@ function verCards(it){
   </div>
   <div class="card"><h2>Terrassebord</h2>
     ${sec('Tykkelse (mm)', Object.keys(BOARDS).map(Number), 'board', it.board, v => v + ' mm (c/c inntil ' + BOARDS[v]/10 + ' cm)')}
-    <p class="stat">${C.boardsOk ? '<span class="ok">Bordene tåler avstanden mellom bjelkene.</span>' : '<span class="bad">For stor avstand mellom bjelkene for denne tykkelsen.</span> Velg tykkere bord eller tettere c/c.'} Regnet med 120 mm brede bord og 6 mm spalte, lagt parallelt med huset.</p>
+    ${sec('Bordretning', ['house','out'], 'bdir', it.bdir, v => v==='out' ? 'Ut fra huset (bjelker langs huset, dragere ut fra huset)' : 'Langs huset (bjelker ut fra huset, dragere langs huset)')}
+    <p class="stat">${C.boardsOk ? '<span class="ok">Bordene tåler avstanden mellom bjelkene.</span>' : '<span class="bad">For stor avstand mellom bjelkene for denne tykkelsen.</span> Velg tykkere bord eller tettere c/c.'} Regnet med 120 mm brede bord og 6 mm spalte.</p>
   </div>
   <div class="card"><h2>Regler</h2><ul>${rules.map(([c, t]) => `<li class="${c}">${t}</li>`).join('')}</ul>
     <p class="muted">Reglene er hentet fra SAK10 § 4-1 og TEK17 §§ 12-11 og 12-15 slik de gjelder i 2026. Sjekk alltid kommuneplanen, reguleringsplanen og avstand til nabogrense, vann- og avløpsledninger og vei. Er du i tvil, spør byggesaksavdelingen i kommunen.</p>
   </div>
   <div class="card"><h2>Materialliste</h2>
     <div class="kv"><span>Bjelker ${C.J.txt}</span><span>${C.nj} stk, i alt ${kn(C.joistLm,1)} m (lengste ${kn(C.joistMax)} m)</span>
-    <span>Drager ${C.Bm.txt}</span><span>${C.Bm.n > 1 ? C.Bm.n + ' × ' : ''}${kn(C.beamLm,1)} m${it.att ? `<br>+ veggbjelke 48×${C.J.h}, ${kn(C.ledgerLm,1)} m` : ''}</span>
+    <span>Drager ${C.Bm.txt}</span><span>${C.Bm.n > 1 ? C.Bm.n + ' × ' : ''}${kn(C.beamLm,1)} m${C.attS ? `<br>+ veggbjelke 48×${C.J.h}, ${kn(C.ledgerLm,1)} m` : ''}</span>
     <span>Stolper ${C.P.txt}</span><span>${C.nposts} stk à ca. ${kn(C.Lp + 0.1,1)} m</span>
     <span>Terrassebord ${it.board}×120</span><span>${C.nboards} lengder, i alt ${kn(C.boardLm,0)} m</span>
     <span>Terrasseskruer</span><span>ca. ${C.screws} stk</span>
