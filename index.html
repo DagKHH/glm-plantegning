@@ -268,7 +268,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web 927e0c0f8f</p>
+      <p class="muted" id="verTxt">Versjon web 48b347f12e</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -484,9 +484,25 @@ function drawSelection(){
   } else if(sel.type==='item' && o.kind==='veranda'){
     const gg = el('g',{transform:`translate(${o.x} ${o.y}) rotate(${o.rot})`,'pointer-events':'none'},world);
     el('polygon',{points:o.pts.map(q=>q.join(',')).join(' '),class:'selbox','stroke-width':1.5/view.k},gg);
-    o.pts.forEach((q,i)=>{ const W=vWorld(o,q[0],q[1]); el('circle',{cx:W.x,cy:W.y,r:(vSel===i?10:o.lock===false?8:6)/view.k,class:'handle','stroke-width':2/view.k,fill:isAnch(o,i)?'var(--sel)':'var(--sheet)','pointer-events':'none'},world);
+    const k1 = 1/view.k, n = o.pts.length, r = o.rot*Math.PI/180, cr = Math.cos(r), sr = Math.sin(r);
+    const sgn = o.pts.reduce((a,q,i)=>{ const q2=o.pts[(i+1)%n]; return a + q[0]*q2[1]-q2[0]*q[1]; },0) > 0 ? 1 : -1; // omløpsretning, gir utover-normalen
+    // sidene: nummer på hver side; den aktive siden lyser, med ring ved start (står i ro) og pil ved slutt (flyttes når lengden endres)
+    o.pts.forEach((q,i)=>{ const q2=o.pts[(i+1)%n], L=Math.hypot(q2[0]-q[0],q2[1]-q[1]); if(L<1e-6) return;
+      const ux=(q2[0]-q[0])/L, uy=(q2[1]-q[1])/L, nx=sgn*uy, ny=-sgn*ux, A=vWorld(o,q[0],q[1]), B=vWorld(o,q2[0],q2[1]);
+      const wux=ux*cr-uy*sr, wuy=ux*sr+uy*cr, wnx=nx*cr-ny*sr, wny=nx*sr+ny*cr, act = i===vSide, mx=(A.x+B.x)/2, my=(A.y+B.y)/2;
+      if(act){ el('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,'stroke-width':22*k1,class:'selglow'},world);
+        el('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,stroke:'var(--sel)','stroke-width':3*k1,'stroke-linecap':'round','pointer-events':'none'},world);
+        dimText(mx+wnx*14*k1, my+wny*14*k1, ulab(L), {ux:wux,uy:wuy});
+        el('circle',{cx:A.x,cy:A.y,r:14*k1,fill:'none',stroke:'var(--sel)','stroke-width':1.5*k1,'stroke-dasharray':(3*k1)+' '+(2*k1),'pointer-events':'none'},world);
+        if(L > 50*k1){ const hg = el('g',{'pointer-events':'none'},world); arrowHead(hg, B.x-wux*14*k1, B.y-wuy*14*k1, Math.atan2(wuy,wux), k1); } }
+      let ang = Math.atan2(wuy,wux)*180/Math.PI; if(ang>90) ang-=180; if(ang<-90) ang+=180;
+      const off = act ? 30*k1 : 12*k1, tx = mx+wnx*off, ty = my+wny*off;
+      el('text',{x:tx,y:ty,class:'seltag','text-anchor':'middle','dominant-baseline':'middle',style:'font-size:'+((act?12:10)*k1)+'px'+(act?'':';opacity:.65'),transform:`rotate(${ang} ${tx} ${ty})`},world).textContent = 'side '+(i+1);
+      el('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,stroke:'transparent','stroke-width':16*k1,style:'cursor:pointer','data-t':'vside','data-id':o.id,'data-e':i},world); });
+    o.pts.forEach((q,i)=>{ const W=vWorld(o,q[0],q[1]); if(vSel===i) el('circle',{cx:W.x,cy:W.y,r:16*k1,fill:'none',stroke:'var(--sel)','stroke-width':1.5*k1,'stroke-dasharray':(3*k1)+' '+(2*k1),'pointer-events':'none'},world);
+      el('circle',{cx:W.x,cy:W.y,r:(vSel===i?10:o.lock===false?8:6)/view.k,class:'handle','stroke-width':2/view.k,fill:isAnch(o,i)?'var(--sel)':'var(--sheet)','pointer-events':'none'},world);
       el('circle',{cx:W.x,cy:W.y,r:18/view.k,fill:'transparent',style:'cursor:grab','data-t':'vend','data-id':o.id,'data-e':i},world); });
-    const r = o.rot*Math.PI/180, ly = -o.h/2-10/view.k; dimText(o.x - ly*Math.sin(r), o.y + ly*Math.cos(r), ufmt(o.w)+' × '+ufmt(o.h), {ux:Math.cos(r),uy:Math.sin(r)});
+    const ly = -o.h/2-48*k1; dimText(o.x - ly*Math.sin(r), o.y + ly*Math.cos(r), ufmt(o.w)+' × '+ufmt(o.h), {ux:cr,uy:sr});
   } else if(sel.type==='item'){
     const rot = ((o.rot%180)+180)%180===90; const w = rot?o.h:o.w, h = rot?o.w:o.h;
     el('rect',{x:o.x-w/2-3,y:o.y-h/2-3,width:w+6,height:h+6,class:'selbox','stroke-width':1.5/view.k},world);
@@ -1216,7 +1232,7 @@ function renderVerandaProps(o, p){
     <div class="btns"><button id="pLock" aria-pressed="${!locked}">${locked ? 'Lås opp form' : 'Lås form'}</button>${vSel!=null ? (isAnch(o,vSel) ? '<button id="pUnanch">Løsne hjørnet</button>' : '<button id="pAnch">Fest hjørnet til vegg</button>') : ''}${nA > 1 ? '<button id="pUnall">Løsne alle</button>' : ''}</div>
     ${locked ? `<p class="muted">Formen er låst. Trykk på et hjørne på tegningen for å feste det til et punkt på en vegg${vSel==null ? '' : ', eller «Lås opp form» for å endre formen'}.</p>` : `
     <div class="row"><label>Form</label><div class="seg"><button data-shape="rect" title="Rektangel">▭</button><button data-shape="lL" title="L-form, vinge til venstre">◰</button><button data-shape="lR" title="L-form, vinge til høyre">◳</button><button id="pMirror" title="Speilvend">⇋</button></div></div>
-    <p class="muted">Dra i hjørnene på tegningen for å forme verandaen. Side 1 er hussiden. Trykk på en side for å skrive inn lengden eller måle den med laseren. Festede hjørner står i ro.</p>
+    <p class="muted">Dra i hjørnene på tegningen for å forme verandaen. Side 1 er hussiden. Trykk på en side her eller på tegningen for å skrive inn lengden eller måle den med laseren. Siden du jobber med lyser oransje: ringen er starten og står i ro, pilen er enden som flyttes. Festede hjørner står i ro.</p>
     <div class="btns"><button id="pAddV">Legg til hjørne</button>${vSel!=null && n > 3 ? '<button id="pDelV">Fjern hjørnet</button>' : ''}</div>`}
     <div class="rows">${rows}</div>
     ${anchTxt ? `<p class="stat">${anchTxt}</p>` : ''}
@@ -1572,6 +1588,7 @@ svg.addEventListener('pointerdown', e => {
   if(!tgt || e.button===1){ drag={kind:'pan',sx:e.clientX,sy:e.clientY,tx:view.tx,ty:view.ty,moved:false}; svg.classList.add('pan'); return; }
   const t = tgt.dataset.t, id = tgt.dataset.id;
   if(t==='dend'){ const d=find(S.dims,id); drag={kind:'dend',d,e:+tgt.dataset.e,prev,moved:false}; return; }
+  if(t==='vside'){ const it=find(S.items,id); vSide=+tgt.dataset.e; if(it.lock===false) vTgt='side'; sel={type:'item',id}; drag={kind:'move',o:it,p0:p,ox:it.x,oy:it.y,rot0:it.rot||0,prev,moved:false}; render(); return; }
   if(t==='vend'){ const it=find(S.items,id); vSel=+tgt.dataset.e; sel={type:'item',id}; drag = (it.lock===false && !isAnch(it,vSel)) ? {kind:'vend',o:it,e:vSel,prev,moved:false} : null; render(); return; }
   if(t==='end'){ const w=find(S.walls,id); const e1=+tgt.dataset.e; const others=linked(w)[e1]; drag={kind:'end',w,e:e1,others,prev,moved:false}; return; }
   sel = {type: t==='op'?'op':t, id}; const o = find(byType(sel.type), id);

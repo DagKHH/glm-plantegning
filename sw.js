@@ -1,5 +1,5 @@
-// Service worker: appen virker uten nett etter første besøk. 927e0c0f8f byttes ut av build_web.py.
-const CACHE = 'plantegning-927e0c0f8f';
+// Service worker: appen virker uten nett etter første besøk. 48b347f12e byttes ut av build_web.py.
+const CACHE = 'plantegning-48b347f12e';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
