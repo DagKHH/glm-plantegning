@@ -238,7 +238,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web 14fc0edafc</p>
+      <p class="muted" id="verTxt">Versjon web ba15e2f17d</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -445,7 +445,7 @@ function drawSelection(){
   } else if(sel.type==='item' && o.kind==='veranda'){
     const gg = el('g',{transform:`translate(${o.x} ${o.y}) rotate(${o.rot})`,'pointer-events':'none'},world);
     el('polygon',{points:o.pts.map(q=>q.join(',')).join(' '),class:'selbox','stroke-width':1.5/view.k},gg);
-    o.pts.forEach((q,i)=>{ const W=vWorld(o,q[0],q[1]); el('circle',{cx:W.x,cy:W.y,r:(vSel===i?8:6)/view.k,class:'handle','stroke-width':2/view.k,'data-t':'vend','data-id':o.id,'data-e':i},world); });
+    o.pts.forEach((q,i)=>{ const W=vWorld(o,q[0],q[1]); el('circle',{cx:W.x,cy:W.y,r:(vSel===i?8:6)/view.k,class:'handle','stroke-width':2/view.k,'data-t':'vend','data-id':o.id,'data-e':i,fill:o.anchor&&o.anchor.k===i?'var(--sel)':'var(--sheet)'},world); });
     const r = o.rot*Math.PI/180, ly = -o.h/2-10/view.k; dimText(o.x - ly*Math.sin(r), o.y + ly*Math.cos(r), ufmt(o.w)+' × '+ufmt(o.h), {ux:Math.cos(r),uy:Math.sin(r)});
   } else if(sel.type==='item'){
     const rot = ((o.rot%180)+180)%180===90; const w = rot?o.h:o.w, h = rot?o.w:o.h;
@@ -756,9 +756,9 @@ function drawDraft(){
     el('circle', {cx:e.x, cy:e.y, r:3.5*k, fill:'var(--sel)'}, g); }
 }
 function drawHover(){
-  if(mode!=='roomstart' || !hover) return; const k = 1/view.k, g = el('g', {'pointer-events':'none'}, world);
+  if((mode!=='roomstart' && mode!=='anchor') || !hover) return; const k = 1/view.k, g = el('g', {'pointer-events':'none'}, world);
   el('circle', {cx:hover.x, cy:hover.y, r:6*k, class:'draftst', 'stroke-width':2*k}, g);
-  if(hover.corner){ const h = hover.dir*Math.PI/180, L = 40*k, tx = hover.x + Math.cos(h)*L, ty = hover.y + Math.sin(h)*L;
+  if(hover.corner && mode==='roomstart'){ const h = hover.dir*Math.PI/180, L = 40*k, tx = hover.x + Math.cos(h)*L, ty = hover.y + Math.sin(h)*L;
     el('line', {x1:hover.x, y1:hover.y, x2:tx, y2:ty, class:'draftf draftact', 'stroke-width':2*k}, g); arrowHead(g, tx, ty, h, k); }
 }
 function rowDetail(k, G){
@@ -975,7 +975,7 @@ function setSide(o, k, L){
   for(let j=k+1; j%n!==k; j++){ const i = j%n;
     if(j > k+1){ const a = o.pts[(j-1)%n], b = o.pts[i], ex = b[0]-a[0], ey = b[1]-a[1], el = Math.hypot(ex,ey)||1; if(Math.abs(ex*ux + ey*uy)/el > 0.1) break; }
     o.pts[i] = [o.pts[i][0] + ux*d, o.pts[i][1] + uy*d]; }
-  vNorm(o); if(o.snap!==false) verandaSnap(o);
+  vNorm(o); vFix(o);
 }
 // Fritt opplagt bjelke med felt L (m), tverrsnitt b×h (mm) og jevnt fordelte laster (kN/m). Utnyttelse for moment, skjær og nedbøyning.
 function beamCheck(b, h, L, wG, wQ, wS){
@@ -1052,7 +1052,17 @@ function drawVeranda(it, g){
       sg.xs.forEach(px => { const c = M(px, bm.y); el('rect', {x:c[0]-pw/2, y:c[1]-ph/2, width:pw, height:ph, class:'vpost'}, g); }); }); });
   if(!C.ok) el('text', {x:0, y:0, 'text-anchor':'middle', 'dominant-baseline':'central', class:'dim', style:'font-size:'+(11*k)+'px'}, g).textContent = 'bæring holder ikke';
 }
-function verandaSnap(o){ // hussiden festes til nærmeste veggflate
+function applyAnchor(o){ // flytter verandaen så det ankrede hjørnet står på ankerpunktet
+  const a = o.anchor; if(!a) return; if(!(a.k < o.pts.length)){ delete o.anchor; return; }
+  const W = vWorld(o, o.pts[a.k][0], o.pts[a.k][1]); o.x += a.x - W.x; o.y += a.y - W.y; }
+function vFix(o){ if(o.anchor) applyAnchor(o); else if(o.snap!==false) verandaSnap(o); }
+function anchorAt(pt){
+  const o = sel && sel.type==='item' ? find(S.items, sel.id) : null; if(!o || o.kind!=='veranda' || vSel==null){ setMode('select'); render(); return; }
+  mutate(() => { o.anchor = {k:vSel, x:pt.x, y:pt.y}; o.snap = false; applyAnchor(o); }); setMode('select'); render();
+  toast('Hjørne ' + (vSel+1) + ' er festet til veggen. Dra i de andre hjørnene for å forme verandaen.');
+}
+function verandaSnap(o){ // hussiden festes til nærmeste veggflate (eller hjørnet til ankerpunktet)
+  if(o.anchor){ applyAnchor(o); return; }
   const hit = nearestWall(o.x, o.y, o.h/2 + toU(80)); if(!hit) return;
   const w = hit.w, g = geom(w), side = ((o.x-w.x1)*g.nx + (o.y-w.y1)*g.ny) >= 0 ? 1 : -1, nx = g.nx*side, ny = g.ny*side;
   const fx = w.x1 + g.ux*hit.c + nx*w.t/2, fy = w.y1 + g.uy*hit.c + ny*w.t/2;
@@ -1082,25 +1092,29 @@ function renderVerandaProps(o, p){
     <div class="row"><label>Form</label><div class="seg"><button data-shape="rect" title="Rektangel">▭</button><button data-shape="lL" title="L-form, vinge til venstre">◰</button><button data-shape="lR" title="L-form, vinge til høyre">◳</button><button id="pMirror" title="Speilvend">⇋</button></div></div>
     <p class="muted">Dra i hjørnene på tegningen for å forme verandaen. Side 1 er hussiden. Trykk på en side for å skrive inn lengden eller måle den med laseren.</p>
     <div class="rows">${rows}</div>
-    <div class="btns"><button id="pAddV">Legg til hjørne</button>${vSel!=null && n > 3 ? '<button id="pDelV">Fjern hjørnet</button>' : ''}</div>
+    <div class="btns"><button id="pAddV">Legg til hjørne</button>${vSel!=null && n > 3 ? '<button id="pDelV">Fjern hjørnet</button>' : ''}${vSel!=null ? '<button id="pAnch">Fest hjørnet til vegg</button>' : ''}</div>
+    ${o.anchor ? `<p class="stat">Hjørne ${o.anchor.k+1} er festet til veggen. Formen endres rundt dette hjørnet.</p><div class="row"><label for="pAng">Vinkel (°)</label><input id="pAng" type="number" step="1" value="${o.rot||0}"></div><div class="btns"><button id="pUnanch">Løsne hjørnet</button></div>` : vSel==null ? '<p class="muted">Trykk på et hjørne på tegningen for å fjerne det eller feste det til et punkt på en vegg.</p>' : ''}
     ${api()?`<div class="row"><label>Neste måling</label><div class="seg"><button data-vt="side" aria-pressed="${vTgt==='side'}">Side ${vSide+1}</button><button data-vt="hgt" aria-pressed="${vTgt==='hgt'}">Høyde</button></div></div>`:''}
     <p class="stat">${C.ok ? '<span class="ok">Bæringen holder</span>' : '<span class="bad">Bæringen holder ikke</span>'} med bjelker ${C.J.txt} c/c ${o.cc}, ${C.nbp} drager${C.nbp>1?'e':''} ${C.Bm.txt} og ${C.nposts} stolper ${C.P.txt}. Areal ${m2(C.A)}.${C.rail ? ' Krever rekkverk.' : ''}${o.hgt > 100 || C.D > 4 ? ' Søknadspliktig.' : ''}</p>
-    <p class="muted">${o.snap!==false ? '«Snu 90°» dreier formen så en annen side vender mot huset. Slå av festingen for å plassere og rotere fritt.' : 'Festingen er av. Dra og roter fritt. Den røde linja er hussiden.'}</p>
+    <p class="muted">${o.anchor ? '«Snu 90°» roterer rundt det festede hjørnet. Drar du hele verandaen, løsner hjørnet.' : o.snap!==false ? '«Snu 90°» dreier formen så en annen side vender mot huset. Slå av festingen for å plassere og rotere fritt.' : 'Festingen er av. Dra og roter fritt. Den røde linja er hussiden.'}</p>
     <div class="btns"><button id="pVer">Bæring og regler</button><button id="pRot">Snu 90°</button><button id="pDup">Dupliser</button><button id="pDel" class="danger">Slett</button></div>`);
-  const shape = (pts) => mutate(() => { o.pts = pts; vNorm(o); vSel = null; vSide = 0; if(o.snap!==false) verandaSnap(o); });
+  const shape = (pts) => mutate(() => { o.pts = pts; vNorm(o); vSel = null; vSide = 0; vFix(o); });
   p.querySelectorAll('[data-shape]').forEach(b => b.onclick = () => { const s = b.dataset.shape; shape(s==='rect' ? rectPts(o.w, o.h) : lPts(o.w, o.h, s==='lR')); });
   p.querySelectorAll('[data-bdir]').forEach(b => b.onclick = () => mutate(() => { o.bdir = b.dataset.bdir; }));
   $('pMirror').onclick = () => shape(o.pts.map(([x,y]) => [-x,y]).reverse());
   p.querySelectorAll('.rrow').forEach(b => { b.onclick = () => { vSide = +b.dataset.k; vTgt = 'side'; render(); }; b.onkeydown = e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); b.click(); } }; });
   if($('vLen')){ $('vLen').onfocus = () => { vTgt = 'side'; }; $('vLen').onchange = e => { const v = fromIn(+e.target.value); if(v > 1) mutate(() => setSide(o, vSide, v)); }; }
-  $('pAddV').onclick = () => mutate(() => { const k = vSide, a = o.pts[k], b = o.pts[(k+1)%n]; o.pts.splice(k+1, 0, [(a[0]+b[0])/2, (a[1]+b[1])/2]); vSel = k+1; });
-  if($('pDelV')) $('pDelV').onclick = () => mutate(() => { o.pts.splice(vSel, 1); vSel = null; vSide = Math.min(vSide, o.pts.length-1); vNorm(o); if(o.snap!==false) verandaSnap(o); });
+  $('pAddV').onclick = () => mutate(() => { const k = vSide, a = o.pts[k], b = o.pts[(k+1)%n]; o.pts.splice(k+1, 0, [(a[0]+b[0])/2, (a[1]+b[1])/2]); if(o.anchor && o.anchor.k > k) o.anchor.k++; vSel = k+1; });
+  if($('pDelV')) $('pDelV').onclick = () => mutate(() => { if(o.anchor && o.anchor.k===vSel) delete o.anchor; else if(o.anchor && o.anchor.k > vSel) o.anchor.k--; o.pts.splice(vSel, 1); vSel = null; vSide = Math.min(vSide, o.pts.length-1); vNorm(o); vFix(o); });
+  if($('pAnch')) $('pAnch').onclick = () => { setMode('anchor'); render(); };
+  if($('pUnanch')) $('pUnanch').onclick = () => mutate(() => { delete o.anchor; });
+  if($('pAng')) $('pAng').onchange = e => mutate(() => { o.rot = +e.target.value || 0; applyAnchor(o); });
   $('pHgt').onchange = e => { const v = cFrom(+e.target.value); if(v >= 0) mutate(() => { o.hgt = v; }); };
   $('pAtt').onchange = e => mutate(() => { o.att = e.target.checked; });
   $('pSnap').onchange = e => mutate(() => { o.snap = e.target.checked; if(o.snap) verandaSnap(o); });
   p.querySelectorAll('[data-vt]').forEach(b => b.onclick = () => { vTgt = b.dataset.vt; render(); });
   $('pVer').onclick = () => openVer(o.id);
-  $('pRot').onclick = () => mutate(() => { if(o.snap!==false){ o.pts = o.pts.map(([x,y]) => [-y, x]); vNorm(o); verandaSnap(o); } else o.rot = (o.rot + 90) % 360; });
+  $('pRot').onclick = () => mutate(() => { if(o.anchor){ o.rot = (o.rot + 90) % 360; applyAnchor(o); } else if(o.snap!==false){ o.pts = o.pts.map(([x,y]) => [-y, x]); vNorm(o); verandaSnap(o); } else o.rot = (o.rot + 90) % 360; });
   $('pDup').onclick = () => mutate(() => { const c = Object.assign({}, o, {id:nid('i'), x:o.x+15, y:o.y+15, pts:o.pts.map(q => q.slice())}); S.items.push(c); sel = {type:'item', id:c.id}; });
   $('pDel').onclick = () => mutate(() => { S.items = S.items.filter(x => x!==o); sel = null; });
 }
@@ -1301,6 +1315,7 @@ svg.addEventListener('pointerdown', e => {
   const p = toWorld(e.clientX,e.clientY); const prev = snapshot();
   const tgt = e.target.closest('[data-t]');
   if(mode==='roomstart' && e.button!==1){ startRoom(roomSnap(p.x,p.y)); return; }
+  if(mode==='anchor' && e.button!==1){ anchorAt(roomSnap(p.x,p.y)); return; }
   if(mode==='dim' && e.button!==1){ const s=measureSnap(p.x,p.y); const d={id:nid('d'),x1:s.x,y1:s.y,x2:s.x,y2:s.y,off:0}; S.dims.push(d); sel={type:'dim',id:d.id}; drag={kind:'newdim',d,prev}; render(); return; }
   if(mode==='measure' && e.button!==1){ const s=measureSnap(p.x,p.y); measure={x1:s.x,y1:s.y,x2:s.x,y2:s.y}; drag={kind:'measure'}; render(); return; }
   if(mode==='wall' && e.button!==1){
@@ -1339,7 +1354,7 @@ svg.addEventListener('pointermove', e => {
   else if(drag.kind==='wall'){ const dx=snapU(p.x-drag.p0.x), dy=snapU(p.y-drag.p0.y), o=drag.orig, w=drag.w;
     w.x1=o.x1+dx; w.y1=o.y1+dy; w.x2=o.x2+dx; w.y2=o.y2+dy; drag.lk[1].forEach(([ww,ee])=>setEnd(ww,ee,w.x1,w.y1)); drag.lk[2].forEach(([ww,ee])=>setEnd(ww,ee,w.x2,w.y2)); S.walls.forEach(clampOps); }
   else if(drag.kind==='op'){ const hit = nearestWall(p.x,p.y,60/view.k); if(hit){ const o=drag.o; o.wall=hit.w.id; o.c=snapU(hit.c); clampOp(o); } }
-  else if(drag.kind==='move'){ const o=drag.o; o.x = snapU(drag.ox+p.x-drag.p0.x); o.y = snapU(drag.oy+p.y-drag.p0.y); if(o.kind==='veranda' && !e.altKey && o.snap!==false) verandaSnap(o);
+  else if(drag.kind==='move'){ const o=drag.o; o.x = snapU(drag.ox+p.x-drag.p0.x); o.y = snapU(drag.oy+p.y-drag.p0.y); if(o.kind==='veranda'){ if(o.anchor){ delete o.anchor; toast('Hjørnet er løsnet fra veggen'); } if(!e.altKey && o.snap!==false) verandaSnap(o); }
     if(o.kind==='kum'||o.kind==='komfyr'){ // fest til benk den slippes på
       const b = S.items.find(i=>{ if(i.kind!=='benk') return false; const v=((i.rot%180)+180)%180===90; const bw=v?i.h:i.w, bh=v?i.w:i.h; return Math.abs(o.x-i.x)<=bw/2 && Math.abs(o.y-i.y)<=bh/2; });
       if(b){ const v=((b.rot%180)+180)%180===90; if(v){ o.x=b.x; } else { o.y=b.y; } o.rot = v?90:0; }
@@ -1358,11 +1373,11 @@ function endPointer(e){
 }
 svg.addEventListener('pointerup', endPointer); svg.addEventListener('pointercancel', endPointer);
 svg.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.clientX,e.clientY, Math.exp(-e.deltaY*0.0015)); }, {passive:false});
-function updateHint(e){ if(mode!=='roomstart' || !e) return; const p=toWorld(e.clientX,e.clientY); hover=roomSnap(p.x,p.y); render(); }
+function updateHint(e){ if((mode!=='roomstart' && mode!=='anchor') || !e) return; const p=toWorld(e.clientX,e.clientY); hover=roomSnap(p.x,p.y); render(); }
 
-function setMode(m){ mode=m; $('mSel').setAttribute('aria-pressed',m==='select'); $('mWall').setAttribute('aria-pressed',m==='wall'); $('mMeas').setAttribute('aria-pressed',m==='measure'); $('mDim').setAttribute('aria-pressed',m==='dim'); $('mRoom').setAttribute('aria-pressed',m==='roomstart'||!!draft); if(m!=='roomstart') hover=null; svg.classList.toggle('draw',m!=='select');
+function setMode(m){ mode=m; $('mSel').setAttribute('aria-pressed',m==='select'); $('mWall').setAttribute('aria-pressed',m==='wall'); $('mMeas').setAttribute('aria-pressed',m==='measure'); $('mDim').setAttribute('aria-pressed',m==='dim'); $('mRoom').setAttribute('aria-pressed',m==='roomstart'||!!draft); if(m!=='roomstart' && m!=='anchor') hover=null; svg.classList.toggle('draw',m!=='select');
   if(m!=='measure') measure=null;
-  $('hint').textContent = m==='roomstart' ? 'Trykk i hjørnet der rommet starter. Det fester seg til innvendige hjørner og veggflater. Esc avbryter.' : m==='dim' ? 'Dra mellom to punkter for å sette ut et mål. Velg det etterpå og dra det ut fra veggen.' : m==='measure' ? 'Dra mellom to punkter for å måle. Fester seg til veggflater og hjørner. Alt = fri vinkel.' : m==='wall' ? 'Dra for å tegne en vegg. Den låser seg vannrett/loddrett og fester seg til andre vegger.' : 'Dra for å flytte · tomt område panorerer · Delete sletter · Ctrl+Z angrer'; }
+  $('hint').textContent = m==='anchor' ? 'Trykk på veggen der hjørnet skal stå. Det fester seg til hjørner og veggflater. Esc avbryter.' : m==='roomstart' ? 'Trykk i hjørnet der rommet starter. Det fester seg til innvendige hjørner og veggflater. Esc avbryter.' : m==='dim' ? 'Dra mellom to punkter for å sette ut et mål. Velg det etterpå og dra det ut fra veggen.' : m==='measure' ? 'Dra mellom to punkter for å måle. Fester seg til veggflater og hjørner. Alt = fri vinkel.' : m==='wall' ? 'Dra for å tegne en vegg. Den låser seg vannrett/loddrett og fester seg til andre vegger.' : 'Dra for å flytte · tomt område panorerer · Delete sletter · Ctrl+Z angrer'; }
 
 // ---------- buttons & keys ----------
 $('bArea').onclick=openArea; $('areaClose').onclick=closeArea; $('bVer').onclick=()=>openVer(); $('verClose').onclick=closeVer;
