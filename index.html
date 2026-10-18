@@ -238,7 +238,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web 8fbb2bb942</p>
+      <p class="muted" id="verTxt">Versjon web be9f65b310</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -947,7 +947,7 @@ const KMOD = {M:0.65, S:0.70}; // middels lang (nyttelast) og kortvarig (snø) i
 const PSI0 = 0.7, PSI2_A = 0.3, PSI2_S = 0.2;
 // Lastkombinasjoner i bruddgrense (NS-EN 1990 NA, 6.10a/6.10b): faktorer for egenlast, nyttelast og snø, med kmod for korteste last i kombinasjonen
 const COMBOS = [{g:1.2,q:1.5,s:0,k:KMOD.M,n:'nyttelast alene'}, {g:1.2,q:1.5,s:1.05,k:KMOD.S,n:'nyttelast + snø'}, {g:1.2,q:1.05,s:1.5,k:KMOD.S,n:'snø + nyttelast'}, {g:1.35,q:1.05,s:1.05,k:KMOD.S,n:'6.10a'}];
-function vcfg(it){ const d = {hgt:60, att:true, cc:600, joist:'48x198', beam:'2x48x198', post:'98x98', board:28, kom:'', alt:0, sk:null, q:4, nsp:0, npo:0, gp:150, braced:true, name:''};
+function vcfg(it){ const d = {hgt:60, att:true, cc:600, joist:'48x198', beam:'2x48x198', post:'98x98', board:28, kom:'', alt:0, sk:null, q:4, nsp:0, npo:0, gp:150, braced:true, name:'', snap:true};
   for(const k in d) if(it[k]===undefined) it[k] = d[k]; return it; }
 // Fritt opplagt bjelke med felt L (m), tverrsnitt b×h (mm) og jevnt fordelte laster (kN/m). Utnyttelse for moment, skjær og nedbøyning.
 function beamCheck(b, h, L, wG, wQ, wS){
@@ -1030,17 +1030,19 @@ function renderVerandaProps(o, p){
     <div class="row"><label for="pH">Dybde ut fra huset (${unit})</label><input id="pH" type="number" step="${ustep()}" value="${inVal(o.h)}"></div>
     <div class="row"><label for="pHgt">Høyde over terreng (${unit})</label><input id="pHgt" type="number" step="${ustep()}" value="${cIn(o.hgt)}"></div>
     <label class="chk"><input id="pAtt" type="checkbox"${o.att?' checked':''}>Festet til husveggen (veggbjelke)</label>
+    <label class="chk"><input id="pSnap" type="checkbox"${o.snap!==false?' checked':''}>Fest hussiden til nærmeste vegg</label>
     ${api()?`<div class="row"><label>Neste måling</label><div class="seg"><button data-vt="w" aria-pressed="${vTgt==='w'}">Bredde</button><button data-vt="h" aria-pressed="${vTgt==='h'}">Dybde</button><button data-vt="hgt" aria-pressed="${vTgt==='hgt'}">Høyde</button></div></div>`:''}
     <p class="stat">${C.ok ? '<span class="ok">Bæringen holder</span>' : '<span class="bad">Bæringen holder ikke</span>'} med bjelker ${C.J.txt} c/c ${o.cc}, ${C.nbp} drager${C.nbp>1?'e':''} ${C.Bm.txt} og ${C.nposts} stolper ${C.P.txt}.${C.rail ? ' Krever rekkverk.' : ''}${o.hgt > 100 || C.D > 4 ? ' Søknadspliktig.' : ''}</p>
-    <p class="muted">Dra verandaen inntil en vegg, så fester hussiden seg til veggen. Den røde linja er hussiden.</p>
-    <div class="btns"><button id="pVer">Bæring og regler</button><button id="pRot">Roter 90°</button><button id="pDup">Dupliser</button><button id="pDel" class="danger">Slett</button></div>`);
+    <p class="muted">${o.snap!==false ? 'Dra verandaen inntil en vegg, så fester hussiden seg til veggen. «Snu 90°» bytter bredde og dybde. Slå av festingen for å plassere og rotere fritt.' : 'Festingen er av. Dra og roter fritt. Den røde linja er hussiden.'}</p>
+    <div class="btns"><button id="pVer">Bæring og regler</button><button id="pRot">Snu 90°</button><button id="pDup">Dupliser</button><button id="pDel" class="danger">Slett</button></div>`);
   $('pW').onchange = e => { const v = fromIn(+e.target.value); if(v > 0) mutate(() => { o.w = v; }); };
   $('pH').onchange = e => { const v = fromIn(+e.target.value); if(v > 0) mutate(() => { o.h = v; }); };
   $('pHgt').onchange = e => { const v = cFrom(+e.target.value); if(v >= 0) mutate(() => { o.hgt = v; }); };
   $('pAtt').onchange = e => mutate(() => { o.att = e.target.checked; });
+  $('pSnap').onchange = e => mutate(() => { o.snap = e.target.checked; if(o.snap) verandaSnap(o); });
   p.querySelectorAll('[data-vt]').forEach(b => b.onclick = () => { vTgt = b.dataset.vt; render(); });
   $('pVer').onclick = () => openVer(o.id);
-  $('pRot').onclick = () => mutate(() => { o.rot = (o.rot + 90) % 360; });
+  $('pRot').onclick = () => mutate(() => { if(o.snap!==false){ const t = o.w; o.w = o.h; o.h = t; verandaSnap(o); } else o.rot = (o.rot + 90) % 360; });
   $('pDup').onclick = () => mutate(() => { const c = Object.assign({}, o, {id:nid('i'), x:o.x+15, y:o.y+15}); S.items.push(c); sel = {type:'item', id:c.id}; });
   $('pDel').onclick = () => mutate(() => { S.items = S.items.filter(x => x!==o); sel = null; });
 }
@@ -1276,7 +1278,7 @@ svg.addEventListener('pointermove', e => {
   else if(drag.kind==='wall'){ const dx=snapU(p.x-drag.p0.x), dy=snapU(p.y-drag.p0.y), o=drag.orig, w=drag.w;
     w.x1=o.x1+dx; w.y1=o.y1+dy; w.x2=o.x2+dx; w.y2=o.y2+dy; drag.lk[1].forEach(([ww,ee])=>setEnd(ww,ee,w.x1,w.y1)); drag.lk[2].forEach(([ww,ee])=>setEnd(ww,ee,w.x2,w.y2)); S.walls.forEach(clampOps); }
   else if(drag.kind==='op'){ const hit = nearestWall(p.x,p.y,60/view.k); if(hit){ const o=drag.o; o.wall=hit.w.id; o.c=snapU(hit.c); clampOp(o); } }
-  else if(drag.kind==='move'){ const o=drag.o; o.x = snapU(drag.ox+p.x-drag.p0.x); o.y = snapU(drag.oy+p.y-drag.p0.y); if(o.kind==='veranda' && !e.altKey) verandaSnap(o);
+  else if(drag.kind==='move'){ const o=drag.o; o.x = snapU(drag.ox+p.x-drag.p0.x); o.y = snapU(drag.oy+p.y-drag.p0.y); if(o.kind==='veranda' && !e.altKey && o.snap!==false) verandaSnap(o);
     if(o.kind==='kum'||o.kind==='komfyr'){ // fest til benk den slippes på
       const b = S.items.find(i=>{ if(i.kind!=='benk') return false; const v=((i.rot%180)+180)%180===90; const bw=v?i.h:i.w, bh=v?i.w:i.h; return Math.abs(o.x-i.x)<=bw/2 && Math.abs(o.y-i.y)<=bh/2; });
       if(b){ const v=((b.rot%180)+180)%180===90; if(v){ o.x=b.x; } else { o.y=b.y; } o.rot = v?90:0; }
