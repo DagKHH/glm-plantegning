@@ -83,6 +83,8 @@ textarea{min-height:90px;font-family:var(--f-num);font-size:11px;resize:vertical
 .ilbl{font:500 7px var(--f-ui);fill:var(--furn);pointer-events:none;user-select:none}
 .selbox{fill:none;stroke:var(--sel);stroke-width:1.5;stroke-dasharray:4 3;pointer-events:none}
 .selwall{stroke:var(--sel);stroke-linecap:square;opacity:.55;pointer-events:none}
+.selglow{stroke:var(--sel);stroke-linecap:round;opacity:.18;pointer-events:none}
+.seltag{font:600 10px var(--f-ui);fill:var(--sel);pointer-events:none;user-select:none}
 .handle{fill:var(--sheet);stroke:var(--sel);stroke-width:2;cursor:grab}
 .dim{font:500 9px var(--f-num);fill:var(--sel);pointer-events:none;user-select:none}
 .meas{stroke:var(--accent);stroke-width:1.5}
@@ -266,7 +268,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web 8d94bd6fca</p>
+      <p class="muted" id="verTxt">Versjon web 927e0c0f8f</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -457,9 +459,18 @@ function drawLabel(l){
 function drawSelection(){
   if(!sel) return; const o = find(byType(sel.type), sel.id); if(!o) return;
   if(sel.type==='wall'){
+    const k = 1/view.k;
+    el('line',{x1:o.x1,y1:o.y1,x2:o.x2,y2:o.y2,'stroke-width':o.t+22*k,class:'selglow'},world);
     el('line',{x1:o.x1,y1:o.y1,x2:o.x2,y2:o.y2,'stroke-width':o.t+4,class:'selwall'},world);
     const g = geom(o), mx=(o.x1+o.x2)/2, my=(o.y1+o.y2)/2, d = o.t/2+12/view.k;
     dimText(mx+g.nx*d, my+g.ny*d, ulab(g.L), g);
+    // start (ring) står stille når lengden endres, slutt (pil) flyttes
+    el('circle',{cx:o.x1,cy:o.y1,r:13*k,fill:'none',stroke:'var(--sel)','stroke-width':1.5*k,'stroke-dasharray':(3*k)+' '+(2*k),'pointer-events':'none'},world);
+    if(g.L > 50*k){ const hg = el('g',{'pointer-events':'none'},world); arrowHead(hg, o.x2-g.ux*12*k, o.y2-g.uy*12*k, Math.atan2(g.uy,g.ux), k); }
+    const tagOff = o.t/2+24*k;
+    [[o.x1+g.ux*16*k,o.y1+g.uy*16*k,'start'],[o.x2-g.ux*16*k,o.y2-g.uy*16*k,'slutt']].forEach(([x,y,txt])=>{
+      let ang = Math.atan2(g.uy,g.ux)*180/Math.PI; if(ang>90) ang-=180; if(ang<-90) ang+=180;
+      el('text',{x:x-g.nx*tagOff,y:y-g.ny*tagOff,class:'seltag','text-anchor':'middle','dominant-baseline':'middle',style:'font-size:'+(10*k)+'px',transform:`rotate(${ang} ${x-g.nx*tagOff} ${y-g.ny*tagOff})`},world).textContent = txt; });
     const lk = linked(o); [[o.x1,o.y1,1],[o.x2,o.y2,2]].forEach(([x,y,e])=>el('circle',{cx:x,cy:y,r:7/view.k,class:'handle','stroke-width':2/view.k,fill:lk[e].length?'var(--sel)':'var(--sheet)','data-t':'end','data-id':o.id,'data-e':e},world));
   } else if(sel.type==='op'){
     const P = opPoints(o); if(!P) return; const {w,g,px,py} = P; const h=o.w/2;
@@ -481,6 +492,7 @@ function drawSelection(){
     el('rect',{x:o.x-w/2-3,y:o.y-h/2-3,width:w+6,height:h+6,class:'selbox','stroke-width':1.5/view.k},world);
     dimText(o.x, o.y-h/2-10/view.k, ufmt(o.w)+' × '+ufmt(o.h), null);
   } else if(sel.type==='dim'){
+    { const G=dimGeom(o); el('line',{x1:G.a[0],y1:G.a[1],x2:G.b[0],y2:G.b[1],'stroke-width':22/view.k,class:'selglow'},world); }
     [[sel.id,1],[sel.id,2]].forEach(([id,e])=>{ const G=dimGeom(o); const q=e===1?G.a:G.b; el('circle',{cx:q[0],cy:q[1],r:6/view.k,class:'handle','stroke-width':2/view.k,'data-t':'dend','data-id':id,'data-e':e},world); });
   } else if(sel.type==='label'){
     const kk=1/view.k, len = (o.text.length*7.5+12)*kk; el('rect',{x:o.x-len/2,y:o.y-11*kk,width:len,height:22*kk,class:'selbox','stroke-width':1.5/view.k},world);
@@ -534,7 +546,7 @@ function renderProps(){
       <div class="row"><label for="pAng">Retning (°)</label><input id="pAng" type="number" step="0.5" value="${wallAngle(o)}"></div>
       ${[1,2].map(e => { const c = cornerAngle(o, e); return c ? `<div class="row"><label for="pCa${e}">Vinkel ved ${e===1?'start':'slutt'} (°)</label><input id="pCa${e}" type="number" step="0.5" min="1" max="179" value="${c.deg}"></div>` : ''; }).join('')}
       <p class="muted">Retning: 0 er mot høyre, 90 er nedover; veggen dreies rundt starten. Vinkel ved start/slutt er den innvendige vinkelen mot naboveggen i et låst hjørne, og veggen dreies rundt det hjørnet. Når du drar, låser veggen seg ved hver 45°.</p>
-      <p class="muted">${(()=>{ const lk = linked(o), f = n => n ? 'låst til ' + n + ' vegg' + (n>1?'er':'') : 'fri'; return 'Start er ' + f(lk[1].length) + ', slutt er ' + f(lk[2].length) + '. Låste hjørner (fylte punkter) følger med når du flytter.'; })()}</p>
+      <p class="muted">${(()=>{ const lk = linked(o), f = n => n ? 'låst til ' + n + ' vegg' + (n>1?'er':'') : 'fri'; return 'Start er ' + f(lk[1].length) + ', slutt er ' + f(lk[2].length) + '. Låste hjørner (fylte punkter) følger med når du flytter. Lengden endres fra starten (ringen), slutten (pilen) flyttes.'; })()}</p>
       <div class="btns"><button id="pJoin">Lås hjørne</button><button id="pSplit">Del i to</button><button id="pDimW">Sett ut mål</button><button id="pDel" class="danger">Slett vegg</button></div>
       ${isScan()?`<div class="calib"><p class="muted">Målestokken er anslått fra skanningen. Kjenner du det riktige målet på denne veggen, skriv det inn så justeres alle mål.</p>
       <div class="row"><label for="pCal">Riktig mål (${unit})</label><input id="pCal" type="number" step="${ustep()}" placeholder="${inVal(g.L)}"></div>
