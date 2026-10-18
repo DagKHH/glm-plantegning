@@ -167,8 +167,9 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
 @media print{
   @page{size:A4;margin:12mm}
   html,body{height:auto;overflow:visible;background:#fff}
-  .app,.toast,.sheet:not(#printSheet){display:none!important}
-  #printSheet{position:static;display:block!important;background:#fff}
+  .app>header,.app>.main,.toast,.sheet:not(#printSheet){display:none!important}
+  .app{height:auto;display:block;background:#fff}
+  #printSheet{position:static;display:block!important;background:#fff;color:#111}
   #printSheet .sheethead{display:none}
   #printSheet .sheetbody{max-width:none;padding:0;overflow:visible;display:block}
   .doc{border:0;padding:0;max-width:none}
@@ -265,7 +266,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web 52c0c63693</p>
+      <p class="muted" id="verTxt">Versjon web 04643f5ec6</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
