@@ -238,7 +238,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web ba15e2f17d</p>
+      <p class="muted" id="verTxt">Versjon web e057c0339c</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -445,7 +445,8 @@ function drawSelection(){
   } else if(sel.type==='item' && o.kind==='veranda'){
     const gg = el('g',{transform:`translate(${o.x} ${o.y}) rotate(${o.rot})`,'pointer-events':'none'},world);
     el('polygon',{points:o.pts.map(q=>q.join(',')).join(' '),class:'selbox','stroke-width':1.5/view.k},gg);
-    o.pts.forEach((q,i)=>{ const W=vWorld(o,q[0],q[1]); el('circle',{cx:W.x,cy:W.y,r:(vSel===i?8:6)/view.k,class:'handle','stroke-width':2/view.k,'data-t':'vend','data-id':o.id,'data-e':i,fill:o.anchor&&o.anchor.k===i?'var(--sel)':'var(--sheet)'},world); });
+    o.pts.forEach((q,i)=>{ const W=vWorld(o,q[0],q[1]); el('circle',{cx:W.x,cy:W.y,r:(vSel===i?10:8)/view.k,class:'handle','stroke-width':2/view.k,fill:o.anchor&&o.anchor.k===i?'var(--sel)':'var(--sheet)','pointer-events':'none'},world);
+      el('circle',{cx:W.x,cy:W.y,r:18/view.k,fill:'transparent',style:'cursor:grab','data-t':'vend','data-id':o.id,'data-e':i},world); });
     const r = o.rot*Math.PI/180, ly = -o.h/2-10/view.k; dimText(o.x - ly*Math.sin(r), o.y + ly*Math.cos(r), ufmt(o.w)+' × '+ufmt(o.h), {ux:Math.cos(r),uy:Math.sin(r)});
   } else if(sel.type==='item'){
     const rot = ((o.rot%180)+180)%180===90; const w = rot?o.h:o.w, h = rot?o.w:o.h;
@@ -1096,7 +1097,7 @@ function renderVerandaProps(o, p){
     ${o.anchor ? `<p class="stat">Hjørne ${o.anchor.k+1} er festet til veggen. Formen endres rundt dette hjørnet.</p><div class="row"><label for="pAng">Vinkel (°)</label><input id="pAng" type="number" step="1" value="${o.rot||0}"></div><div class="btns"><button id="pUnanch">Løsne hjørnet</button></div>` : vSel==null ? '<p class="muted">Trykk på et hjørne på tegningen for å fjerne det eller feste det til et punkt på en vegg.</p>' : ''}
     ${api()?`<div class="row"><label>Neste måling</label><div class="seg"><button data-vt="side" aria-pressed="${vTgt==='side'}">Side ${vSide+1}</button><button data-vt="hgt" aria-pressed="${vTgt==='hgt'}">Høyde</button></div></div>`:''}
     <p class="stat">${C.ok ? '<span class="ok">Bæringen holder</span>' : '<span class="bad">Bæringen holder ikke</span>'} med bjelker ${C.J.txt} c/c ${o.cc}, ${C.nbp} drager${C.nbp>1?'e':''} ${C.Bm.txt} og ${C.nposts} stolper ${C.P.txt}. Areal ${m2(C.A)}.${C.rail ? ' Krever rekkverk.' : ''}${o.hgt > 100 || C.D > 4 ? ' Søknadspliktig.' : ''}</p>
-    <p class="muted">${o.anchor ? '«Snu 90°» roterer rundt det festede hjørnet. Drar du hele verandaen, løsner hjørnet.' : o.snap!==false ? '«Snu 90°» dreier formen så en annen side vender mot huset. Slå av festingen for å plassere og rotere fritt.' : 'Festingen er av. Dra og roter fritt. Den røde linja er hussiden.'}</p>
+    <p class="muted">${o.anchor ? 'Hjørnet står fast. Drar du i verandaen, svinger den rundt hjørnet (låser seg ved 45°). «Snu 90°» og Vinkel roterer også rundt det. «Løsne hjørnet» slipper den.' : o.snap!==false ? '«Snu 90°» dreier formen så en annen side vender mot huset. Slå av festingen for å plassere og rotere fritt.' : 'Festingen er av. Dra og roter fritt. Den røde linja er hussiden.'}</p>
     <div class="btns"><button id="pVer">Bæring og regler</button><button id="pRot">Snu 90°</button><button id="pDup">Dupliser</button><button id="pDel" class="danger">Slett</button></div>`);
   const shape = (pts) => mutate(() => { o.pts = pts; vNorm(o); vSel = null; vSide = 0; vFix(o); });
   p.querySelectorAll('[data-shape]').forEach(b => b.onclick = () => { const s = b.dataset.shape; shape(s==='rect' ? rectPts(o.w, o.h) : lPts(o.w, o.h, s==='lR')); });
@@ -1331,7 +1332,7 @@ svg.addEventListener('pointerdown', e => {
   if(t==='wall') drag={kind:'wall',w:o,p0:p,orig:{x1:o.x1,y1:o.y1,x2:o.x2,y2:o.y2},lk:linked(o),prev,moved:false};
   else if(t==='op') drag={kind:'op',o,prev,moved:false};
   else if(t==='dim') drag={kind:'dimoff',o,p0:p,off0:o.off,prev,moved:false};
-  else drag={kind:'move',o,p0:p,ox:o.x,oy:o.y,prev,moved:false};
+  else drag={kind:'move',o,p0:p,ox:o.x,oy:o.y,rot0:o.rot||0,prev,moved:false};
   render();
 });
 svg.addEventListener('pointermove', e => {
@@ -1354,7 +1355,7 @@ svg.addEventListener('pointermove', e => {
   else if(drag.kind==='wall'){ const dx=snapU(p.x-drag.p0.x), dy=snapU(p.y-drag.p0.y), o=drag.orig, w=drag.w;
     w.x1=o.x1+dx; w.y1=o.y1+dy; w.x2=o.x2+dx; w.y2=o.y2+dy; drag.lk[1].forEach(([ww,ee])=>setEnd(ww,ee,w.x1,w.y1)); drag.lk[2].forEach(([ww,ee])=>setEnd(ww,ee,w.x2,w.y2)); S.walls.forEach(clampOps); }
   else if(drag.kind==='op'){ const hit = nearestWall(p.x,p.y,60/view.k); if(hit){ const o=drag.o; o.wall=hit.w.id; o.c=snapU(hit.c); clampOp(o); } }
-  else if(drag.kind==='move'){ const o=drag.o; o.x = snapU(drag.ox+p.x-drag.p0.x); o.y = snapU(drag.oy+p.y-drag.p0.y); if(o.kind==='veranda'){ if(o.anchor){ delete o.anchor; toast('Hjørnet er løsnet fra veggen'); } if(!e.altKey && o.snap!==false) verandaSnap(o); }
+  else if(drag.kind==='move'){ const o=drag.o; o.x = snapU(drag.ox+p.x-drag.p0.x); o.y = snapU(drag.oy+p.y-drag.p0.y); if(o.kind==='veranda'){ if(o.anchor){ const a=o.anchor, a1=Math.atan2(p.y-a.y,p.x-a.x), a0=Math.atan2(drag.p0.y-a.y,drag.p0.x-a.x); let r=drag.rot0+(a1-a0)*180/Math.PI; const s=Math.round(r/45)*45; if(Math.abs(r-s)<6) r=s; o.rot=Math.round(r); o.x=drag.ox; o.y=drag.oy; applyAnchor(o); } else if(!e.altKey && o.snap!==false) verandaSnap(o); }
     if(o.kind==='kum'||o.kind==='komfyr'){ // fest til benk den slippes på
       const b = S.items.find(i=>{ if(i.kind!=='benk') return false; const v=((i.rot%180)+180)%180===90; const bw=v?i.h:i.w, bh=v?i.w:i.h; return Math.abs(o.x-i.x)<=bw/2 && Math.abs(o.y-i.y)<=bh/2; });
       if(b){ const v=((b.rot%180)+180)%180===90; if(v){ o.x=b.x; } else { o.y=b.y; } o.rot = v?90:0; }
