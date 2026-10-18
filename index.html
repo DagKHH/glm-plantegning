@@ -266,7 +266,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web 9453c30dfb</p>
+      <p class="muted" id="verTxt">Versjon web 8d94bd6fca</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -531,12 +531,17 @@ function renderProps(){
     h(`<p class="sel-title">Vegg</p>
       <div class="row"><label for="pLen">Lengde (${unit})</label><input id="pLen" type="number" step="${ustep()}" value="${inVal(g.L)}"></div>
       <div class="row"><label for="pT">Tykkelse (${unit})</label><input id="pT" type="number" step="${ustep()}" value="${inVal(o.t)}"></div>
+      <div class="row"><label for="pAng">Retning (°)</label><input id="pAng" type="number" step="0.5" value="${wallAngle(o)}"></div>
+      ${[1,2].map(e => { const c = cornerAngle(o, e); return c ? `<div class="row"><label for="pCa${e}">Vinkel ved ${e===1?'start':'slutt'} (°)</label><input id="pCa${e}" type="number" step="0.5" min="1" max="179" value="${c.deg}"></div>` : ''; }).join('')}
+      <p class="muted">Retning: 0 er mot høyre, 90 er nedover; veggen dreies rundt starten. Vinkel ved start/slutt er den innvendige vinkelen mot naboveggen i et låst hjørne, og veggen dreies rundt det hjørnet. Når du drar, låser veggen seg ved hver 45°.</p>
       <p class="muted">${(()=>{ const lk = linked(o), f = n => n ? 'låst til ' + n + ' vegg' + (n>1?'er':'') : 'fri'; return 'Start er ' + f(lk[1].length) + ', slutt er ' + f(lk[2].length) + '. Låste hjørner (fylte punkter) følger med når du flytter.'; })()}</p>
       <div class="btns"><button id="pJoin">Lås hjørne</button><button id="pSplit">Del i to</button><button id="pDimW">Sett ut mål</button><button id="pDel" class="danger">Slett vegg</button></div>
       ${isScan()?`<div class="calib"><p class="muted">Målestokken er anslått fra skanningen. Kjenner du det riktige målet på denne veggen, skriv det inn så justeres alle mål.</p>
       <div class="row"><label for="pCal">Riktig mål (${unit})</label><input id="pCal" type="number" step="${ustep()}" placeholder="${inVal(g.L)}"></div>
       <div class="btns"><button id="pCalGo">Bruk som målestokk</button></div></div>`:''}`);
     $('pLen').onchange = e => { const v = fromIn(+e.target.value); if(!(v>1)) return; mutate(()=>setWallLen(o,v)); };
+    $('pAng').onchange = e => mutate(()=>setWallAngle(o, +e.target.value || 0, 1));
+    [1,2].forEach(k => { const i = $('pCa'+k); if(i) i.onchange = e => mutate(()=>setCornerAngle(o, k, +e.target.value)); });
     $('pT').onchange = e => { const v = fromIn(+e.target.value); if(!(v>0)) return; mutate(()=>{ o.t = v; }); };
     $('pDel').onclick = () => mutate(()=>{ S.walls = S.walls.filter(w=>w!==o); S.openings = S.openings.filter(x=>x.wall!==o.id); sel=null; });
     $('pSplit').onclick = () => mutate(()=>{ const mx=(o.x1+o.x2)/2,my=(o.y1+o.y2)/2; const nw = {id:nid('w'),x1:mx,y1:my,x2:o.x2,y2:o.y2,t:o.t}; const half=g.L/2;
@@ -599,6 +604,22 @@ function renderProps(){
 function avgX(){ let s=0,n=0; S.walls.forEach(w=>{s+=w.x1+w.x2;n+=2;}); return n?s/n:0; }
 function avgY(){ let s=0,n=0; S.walls.forEach(w=>{s+=w.y1+w.y2;n+=2;}); return n?s/n:0; }
 function keepMeasure(){ if(!measure) return; mutate(()=>{ const d={id:nid('d'),x1:measure.x1,y1:measure.y1,x2:measure.x2,y2:measure.y2,off:0}; S.dims.push(d); measure=null; sel={type:'dim',id:d.id}; }); setMode('select'); toast('Mål satt ut – dra det dit du vil ha det'); render(); }
+const wallAngle = w => { const g = geom(w); return Math.round(norm360(Math.atan2(g.uy, g.ux)*180/Math.PI)*10)/10; };
+function setWallAngle(o, deg, pivot){ // dreier veggen rundt enden pivot (1 eller 2) til retning deg (0 = mot høyre, 90 = ned)
+  const g = geom(o), r = deg*Math.PI/180, ends = linked(o);
+  if(pivot===2){ o.x1 = o.x2 - Math.cos(r)*g.L; o.y1 = o.y2 - Math.sin(r)*g.L; ends[1].forEach(([w,e]) => setEnd(w, e, o.x1, o.y1)); }
+  else { o.x2 = o.x1 + Math.cos(r)*g.L; o.y2 = o.y1 + Math.sin(r)*g.L; ends[2].forEach(([w,e]) => setEnd(w, e, o.x2, o.y2)); }
+  S.walls.forEach(clampOps);
+}
+function cornerAngle(o, e){ // innvendig vinkel mot naboveggen i enden e, hvis nøyaktig én vegg er låst der
+  const lk = linked(o)[e]; if(!lk.length || lk.length > 2) return null; const [nb, ne] = lk[0];
+  if(lk.length===2){ const [n2, e2] = lk[1], g1 = geom(nb), g2 = geom(n2); if(Math.abs(g1.ux*g2.uy - g1.uy*g2.ux) > 0.05) return null; } // T-kryss: naboene ligger på linje, vinkelen måles mot den første
+  const ax = e===1 ? o.x2-o.x1 : o.x1-o.x2, ay = e===1 ? o.y2-o.y1 : o.y1-o.y2, bx = ne===1 ? nb.x2-nb.x1 : nb.x1-nb.x2, by = ne===1 ? nb.y2-nb.y1 : nb.y1-nb.y2;
+  const phi = Math.atan2(bx*ay - by*ax, bx*ax + by*ay)*180/Math.PI; // fortegnet vinkel fra naboveggen til denne veggen
+  return {nb, phi, deg:Math.round(Math.abs(phi)*10)/10, nbDir:Math.atan2(by, bx)*180/Math.PI};
+}
+function setCornerAngle(o, e, v){ const c = cornerAngle(o, e); if(!c || !(v > 0 && v < 180)) return;
+  const dir = c.nbDir + (c.phi >= 0 ? v : -v); setWallAngle(o, e===1 ? dir : dir + 180, e); }
 function setWallLen(o,v){ const g=geom(o); const ends=linked(o); o.x2=o.x1+g.ux*v; o.y2=o.y1+g.uy*v; ends[2].forEach(([ww,ee])=>setEnd(ww,ee,o.x2,o.y2)); clampOps(o); }
 function clampOp(o){ const w=find(S.walls,o.wall); if(!w) return; const L=geom(w).L; o.w=Math.min(o.w, L); o.c=Math.min(Math.max(o.c,o.w/2), L-o.w/2); }
 function clampOps(w){ S.openings.forEach(o=>{ if(o.wall===w.id) clampOp(o); }); }
@@ -1502,8 +1523,9 @@ function snapPoint(x,y,exclude){
 }
 function ortho(ax,ay,p){ // lock to horizontal/vertical when close
   const dx=p.x-ax, dy=p.y-ay; if(p.snapped) return p;
-  const a = Math.abs(Math.atan2(dy,dx)*180/Math.PI);
-  if(a<7||a>173) return {x:p.x,y:ay}; if(Math.abs(a-90)<7) return {x:ax,y:p.y}; return p;
+  const a = Math.atan2(dy,dx)*180/Math.PI, s = Math.round(a/45)*45, L = Math.hypot(dx,dy);
+  if(Math.abs(a-s) < 7){ const r = s*Math.PI/180, q = Math.abs(s % 180); return {x: q===0 ? p.x : q===90 ? ax : ax+Math.cos(r)*L, y: q===0 ? ay : q===90 ? p.y : ay+Math.sin(r)*L}; }
+  return p;
 }
 
 // ---------- view / pointer ----------
