@@ -136,6 +136,22 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
 .chk{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
 .chk input{width:auto;min-height:0}
 input.tgt{outline:2px solid var(--accent);outline-offset:1px}
+/* veranda */
+.vdeck{fill:var(--terr);stroke:var(--ink);stroke-width:1.2}
+.vboard{stroke:var(--furn);stroke-width:.4;opacity:.6}
+.vjoist{stroke:var(--accent);stroke-width:1;stroke-dasharray:4 3;opacity:.8}
+.vbeam{stroke:var(--ink);stroke-width:2.5;opacity:.75}
+.vpost{fill:var(--sheet);stroke:var(--ink);stroke-width:1.2}
+.vhouse{stroke:var(--sel);stroke-width:2}
+.util{display:grid;grid-template-columns:minmax(0,1fr) 60px 48px;gap:4px 10px;align-items:center;font-size:13px}
+.util .bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.util .bar i{display:block;height:100%;background:#2f9e5b}
+.util .bar i.hi{background:var(--sel)}
+.util .pct{font:500 13px var(--f-num);text-align:right}
+.ok{color:#2f9e5b;font-weight:600}.bad{color:var(--sel);font-weight:600}
+.card ul{margin:0;padding-left:18px;font-size:13px;line-height:1.5;display:flex;flex-direction:column;gap:6px}
+.card li.ok,.card li.bad,.card li.warn{font-weight:400;color:var(--ink)}
+.card li.bad::marker{color:var(--sel)}.card li.ok::marker{color:#2f9e5b}.card li.warn::marker{color:var(--accent)}
 @media (max-width:760px){
   .main{flex-direction:column}
   .stage{flex:1 1 55%}
@@ -161,6 +177,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
   </div>
   <div class="grp">
     <button id="bArea" title="Areal og maling"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg>Areal</button>
+    <button id="bVer" title="Veranda – bæring og regler"><svg viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="M8 6v12M13 6v12M18 6v12"/><path d="M3 15h18"/></svg>Veranda</button>
   </div>
   <div class="grp">
     <button id="bUndo" title="Angre (Ctrl+Z)" aria-label="Angre"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg></button>
@@ -176,6 +193,11 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
   <div class="sheethead"><h2>Areal og maling</h2><button id="areaClose">Lukk</button></div>
   <div class="sheetbody" id="areaBody"></div>
 </div>
+<div class="sheet" id="verSheet" hidden role="dialog" aria-label="Veranda – bæring og regler">
+  <div class="sheethead"><h2>Veranda – bæring og regler</h2><button id="verClose">Lukk</button></div>
+  <div class="sheetbody" id="verBody"></div>
+</div>
+<datalist id="komList"></datalist>
 <div class="main">
   <div class="stage" id="stage">
     <svg id="svg" xmlns="http://www.w3.org/2000/svg" aria-label="Plantegning"><g id="gridL"></g><g id="world"></g></svg>
@@ -216,7 +238,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web c9ea4a10a7</p>
+      <p class="muted" id="verTxt">Versjon web 8fbb2bb942</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -308,7 +330,7 @@ function render(){
   world.textContent = '';
   if(scanOp > 0 && isScan()) el('image',{href:BG, x:0, y:0, width:BGW, height:BGH, opacity:scanOp/100, class:'scan', 'pointer-events':'none'}, world);
   drawGrid();
-  const LAYER = {terrasse:0, benk:1, trapp:1, seng:1, sofa:1, bord:1};
+  const LAYER = {terrasse:0, veranda:0, benk:1, trapp:1, seng:1, sofa:1, bord:1};
   S.items.slice().sort((a,b)=>(LAYER[a.kind]??2)-(LAYER[b.kind]??2)).forEach(drawItem);
   S.walls.forEach(drawWall);
   S.openings.forEach(drawOpening);
@@ -321,6 +343,7 @@ function render(){
   syncChrome();
   renderProps();
   if(!$('areaSheet').hidden) renderArea();
+  if(!$('verSheet').hidden) renderVer();
 }
 function drawGrid(){ // rutenett over hele det synlige området
   const g = $('gridL'); g.textContent = ''; g.setAttribute('transform', world.getAttribute('transform') || ''); if(!showGrid) return;
@@ -369,6 +392,7 @@ function drawItem(it){
   const R = (cls,extra) => el('rect',Object.assign({x,y,width:w,height:h,class:cls},extra||{}),g);
   switch(it.kind){
     case 'terrasse': R('terr'); break;
+    case 'veranda': drawVeranda(it, g); break;
     case 'trapp': { R('furn'); const n = Math.max(3, Math.round(Math.max(w,h)/ toU(25)));
       for(let i=1;i<n;i++){ if(w>=h){ const xx=x+w*i/n; el('line',{x1:xx,y1:y,x2:xx,y2:y+h,class:'furnl'},g);} else { const yy=y+h*i/n; el('line',{x1:x,y1:yy,x2:x+w,y2:yy,class:'furnl'},g);} }
       if(w>=h) el('path',{d:`M${x+4} 0 H${x+w-6} m-4 -3 l4 3 l-4 3`,class:'furnl'},g); else el('path',{d:`M0 ${y+4} V${y+h-6} m-3 -4 l3 4 l3 -4`,class:'furnl'},g);
@@ -418,6 +442,10 @@ function drawSelection(){
     const rc = o.from==='B' ? g.L-e2 : e1;
     el('circle',{cx:w.x1+g.ux*rc,cy:w.y1+g.uy*rc,r:5/view.k,class:'draftst','stroke-width':2/view.k},world);
     dimText(px-g.nx*d, py-g.ny*d, 'b '+ufmt(o.w), g);
+  } else if(sel.type==='item' && o.kind==='veranda'){
+    const gg = el('g',{transform:`translate(${o.x} ${o.y}) rotate(${o.rot})`,'pointer-events':'none'},world);
+    el('rect',{x:-o.w/2-3,y:-o.h/2-3,width:o.w+6,height:o.h+6,class:'selbox','stroke-width':1.5/view.k},gg);
+    const r = o.rot*Math.PI/180, ly = -o.h/2-10/view.k; dimText(o.x - ly*Math.sin(r), o.y + ly*Math.cos(r), ufmt(o.w)+' × '+ufmt(o.h), {ux:Math.cos(r),uy:Math.sin(r)});
   } else if(sel.type==='item'){
     const rot = ((o.rot%180)+180)%180===90; const w = rot?o.h:o.w, h = rot?o.w:o.h;
     el('rect',{x:o.x-w/2-3,y:o.y-h/2-3,width:w+6,height:h+6,class:'selbox','stroke-width':1.5/view.k},world);
@@ -450,7 +478,7 @@ function dimText(x,y,txt,g){
 }
 
 // ---------- properties panel ----------
-const KIND = {benk:'Kjøkkenbenk',komfyr:'Komfyr',kum:'Kum',kjoleskap:'Kjøleskap',seng:'Seng',sofa:'Sofa',bord:'Bord',trapp:'Trapp',peis:'Peis',pipe:'Pipe',terrasse:'Terrasse'};
+const KIND = {benk:'Kjøkkenbenk',komfyr:'Komfyr',kum:'Kum',kjoleskap:'Kjøleskap',seng:'Seng',sofa:'Sofa',bord:'Bord',trapp:'Trapp',peis:'Peis',pipe:'Pipe',terrasse:'Terrasse',veranda:'Veranda'};
 const OPT = {window:'Vindu',door:'Dør',double:'Dobbeldør',slide:'Skyvedør'};
 function renderProps(){
   const p = $('props'); const active = document.activeElement; const keepId = active && p.contains(active) ? active.id : null;
@@ -508,6 +536,7 @@ function renderProps(){
     if($('pSide')) $('pSide').onclick = () => mutate(()=>{ o.side = -o.side; });
     $('pDel').onclick = () => mutate(()=>{ S.openings = S.openings.filter(x=>x!==o); sel=null; });
   } else if(sel.type==='item'){
+    if(o.kind==='veranda'){ renderVerandaProps(o, p); if(keepId && $(keepId)) $(keepId).focus(); return; }
     h(`<p class="sel-title">${KIND[o.kind]||o.kind}</p>
       <div class="row"><label for="pW">Bredde (${unit})</label><input id="pW" type="number" step="${ustep()}" value="${inVal(o.w)}"></div>
       <div class="row"><label for="pH">Dybde (${unit})</label><input id="pH" type="number" step="${ustep()}" value="${inVal(o.h)}"></div>
@@ -898,6 +927,234 @@ function areaMeasure(c){
   mutate(() => { r.h = c; }); toast('Takhøyde ' + (r.name||'') + ': ' + fmtMeas(c));
   const next = S.rooms.find(x => !(x.h > 0)); areaTgt = next ? next.id : null; renderArea(true); return true;
 }
+// ---------- veranda: bæring og regler ----------
+// Karakteristisk snølast på mark per kommune: navn|sk,0 (kN/m²)|Hg (m)|Δsk per 100 m over Hg|sk,maks.
+// Verdiene er fra NS 3491-3 slik de er gjengitt i Byggforsk 471.041, med kommunenavn fra før 2020. Sjekk NS-EN 1991-1-3 NA for byggestedet.
+const SNOW_RAW = 'Agdenes|4|150|1|;Alstadhaug|3.5|150|1|;Alta|4.5|150|1|;Alvdal|4|650|1|6.5;Andebu|4.5|150|0.5|6.5;Andøy|4.5|150|1|;Aremark|3|250|0.5|;Arendal|4.5|150|0.5|;Asker|4|150|1|;Askim|3|250|0.5|;Askvoll|2.5|150|1|;Askøy|1.5|150|0.5|;Audnedal|4.5|150|0.5|6.5;Aukra|3|150|1|;Aure|4.5|150|1|;Aurland|2.5|150|1|;Aurskog-Høland|3|250|1|6.5;Austevoll|1.5|150|0.5|;Austrheim|1.5|150|0.5|;Averøy|3.5|150|1|;Balestrand|2.5|150|1|;Balestrand nær Jostedalsbreen|2.5|150|1|8.5;Ballangen|4.5|150|1|;Balsfjord|5.5|150|1|;Bamble|4|150|1|;Bardu|5|150|1|8.5;Beiarn|4.5|150|1|9;Berg|5|150|1|;Bergen|2|150|0.5|;Berlevåg|4|150|1|;Bindal|4|150|1|;Birkenes|4.5|150|0.5|6.5;Bjarkøy|5|150|1|;Bjerkreim|2|150|0.5|7.5;Bjugn|3|150|1|;Bodø|4|150|1|;Bokn|1.5|150|0.5|;Bremanger|2.5|150|1|;Bremanger nær Ålfotbreen|2.5|150|1|8.5;Brønnøy|4|150|1|;Brønnøy Brønnøysund|3|150|1|;Brønnøy kystlinjen|3|150|1|;Bygland|4.5|350|1|6.5;Bykle|5|750|1|6.5;Bykle nær Rogaland|5|750|1|7.5;Båtsfjord|4|150|1|;Bærum|3.5|150|1|;Bø|4|150|1|6.5;Bø|4.5|150|1|;Bømlo|1.5|150|0.5|;Deanu / Tana|4|150|1|;Dovre|4|550|1|6.5;Dovre nær Trøndelag|4|550|1|7.5;Drammen|3.5|150|1|;Drangedal|4.5|150|1|6.5;Dyrøy|5.5|150|1|;Dønna|3|150|1|;Eid|4|150|1|;Eide|3.5|150|1|;Eidfjord|3|150|1|;Eidsberg|3|250|0.5|;Eidskog|3.5|250|1|6.5;Eidsvoll|4.5|250|1|6.5;Eigersund|2|150|0.5|;Elverum|4|250|1|6.5;Enebakk|4|250|1|6.5;Engerdal|4|650|1|6.5;Engerdal nær Trøndelag|4|650|1|7.5;Etne|2|150|0.5|;Etne nær Folgefonna|2|150|0.5|8.5;Etnedal|4.5|450|1|6.5;Evenes|4.5|150|1|;Evje og Hornnes|4.5|250|0.5|6.5;Farsund|2.5|150|0.5|;Fauske|4.5|150|1|;Fedje|1.5|150|0.5|;Fet|4|250|1|6.5;Finnøy|1.5|150|0.5|;Fitjar|1.5|150|0.5|;Fjaler|3|150|1|;Fjell|1.5|150|0.5|;Flakstad|4|150|1|;Flatanger|3|150|1|;Flekkefjord|2.5|150|0.5|;Flekkefjord mot Rogaland|2.5|150|0.5|7.5;Flesberg|4.5|250|1|6.5;Flora|2.5|150|1|;Flå|3.5|250|1|6.5;Folldal|4|850|1|6.5;Folldal nær Trøndelag|4|850|1|7.5;Forsand|1.5|150|1|;Fosnes|4|150|1|;Fredrikstad|2.5|150|0.5|;Frei|3.5|150|1|;Frogn|4|150|1|;Froland|4.5|150|0.5|6.5;Frosta|2.5|150|1|;Fræna|3.5|150|1|;Frøya|2.5|150|1|;Fusa|3|150|0.5|;Fyresdal|4.5|350|1|6.5;Førde|3.5|150|1|;Førde nær Jostedalsbreen|3.5|150|1|8.5;Gamvik|4.5|150|1|;Gaular|3|150|1|;Gausdal|4.5|350|1|6.5;Gildeskål|4|150|1|9;Giske|3|150|1|;Giske øyene|2.5|150|1|;Gjemnes|4.5|150|1|;Gjerdrum|4.5|250|1|6.5;Gjerstad|4.5|150|1|6.5;Gjesdal|2|150|0.5|;Gjøvik|4.5|250|1|6.5;Gloppen|3.5|150|1|;Gloppen nær Ålfotbreen / Jostedalsbreen|3.5|150|1|8.5;Gol|4|350|1|6.5;Gran|4|350|1|6.5;Grane|7.5|150|1|9;Granvin|3|150|1|;Gratangen|5|150|1|;Grimstad|4.5|150|0.5|;Grong|5.5|150|1|7.5;Grue|3.5|250|1|6.5;Gulen|2.5|150|1|;Gáivuona / Kåfjord|5|150|1|;Hadsel|4|150|1|;Halden|3|150|0.5|;Halsa|4.5|150|1|;Hamar|3.5|250|1|6.5;Hamarøy|4|150|1|;Hammerfest|5|150|1|;Haram|2.5|150|1|;Hareid|3|150|1|;Harstad|5|150|1|;Hasvik|5|150|1|;Hattfjelldal|7.5|350|1|9;Haugesund|1.5|150|0.5|;Hemne|4.5|150|1|;Hemnes|5|150|1|9;Hemsedal|4.5|750|1|6.5;Hemsedal nær Sogn og Fj.|4.5|750|1|7.5;Herøy|2.5|150|1|;Herøy|2.5|150|1|;Hitra|2.5|150|1|;Hjartdal|4.5|150|1|6.5;Hjelmeland|1.5|150|1|;Hobøl|3.5|150|0.5|;Hof|4.5|150|0.5|6.5;Hol|5|650|1|6.5;Hol nær Hordaland / Sogn og Fjordane|5|650|1|7.5;Hole|3|150|1|6.5;Holmestrand|4.5|150|0.5|;Holtålen|4.5|450|1|7.5;Hornindal|4|150|1|7.5;Horten|4|150|0.5|;Hurdal|5|250|1|6.5;Hurum|4|150|1|;Hvaler|2|150|0.5|;Hyllestad|2.5|150|1|;Hå|1.5|150|0.5|;Hægebostad|4.5|250|0.5|6.5;Høyanger|2.5|150|1|;Høylandet|6|150|1|;Ibestad|5|150|1|;Inderøy|3.5|150|1|;Iveland|4.5|350|0.5|6.5;Jevnaker|4|250|1|6.5;Jondal|2.5|150|1|;Jondal nær Folgefonna|2.5|150|1|8.5;Jølster|3.5|350|1|7.5;Jølster nær Jostedalsbreen|3.5|350|1|8.5;Karlsøy|5|150|1|;Karmøy|1.5|150|0.5|;Kautokeino|4|450|1|8.5;Klepp|1.5|150|0.5|;Klæbu|4|250|1|7.5;Kongsberg|5|250|1|6.5;Kongsvinger|3.5|250|1|6.5;Kragerø|4.5|150|1|;Kristiansand|4|150|0.5|;Kristiansund|2.5|150|1|;Krødsherad|4.5|250|1|6.5;Kvalsund|5|150|1|;Kvam|2.5|150|1|;Kvinesdal|3|150|0.5|;Kvinnherad|2|150|1|;Kvinnherad nær Folgefonna|2|150|1|8.5;Kviteseid|4.5|150|1|6.5;Kvitsøy|1.5|150|0.5|;Kvæfjord|5|150|1|;Kvænangen|4.5|150|1|;Kárájoga / Karasjok|4|250|1|8.5;Lardal|5|150|0.5|6.5;Larvik|4|150|0.5|;Lavangen|5|150|1|;Lebesby|4.5|150|1|;Leikanger|2.5|150|1|;Leikanger nær Ålfotbreen|2.5|150|1|8.5;Leirfjord|4|150|1|;Leka|2.5|150|1|;Leka på fastlandet|4|150|1|;Leksvik|4|150|1|;Lenvik|6|150|1|;Lesja|4|750|1|6.5;Lesja nær Trøndelag / Møre og Romsdal|4|750|1|7.5;Levanger|3.5|150|1|;Lier|3.5|150|1|;Lierne|5.5|550|1|7.5;Lillehammer|4.5|250|1|6.5;Lillesand|4.5|150|0.5|;Lindesnes|3|150|0.5|;Lindås|2.5|150|0.5|;Lindås øst for Osterøya|3.5|150|0.5|;Lom|3.5|450|1|6.5;Lom nær Sogn og Fj.|3.5|450|1|7.5;Loppa|5|150|1|;Lund|3|150|0.5|7.5;Lunner|4.5|350|1|6.5;Lurøy|3|150|1|9;Lurøy på fastlandet|4|150|1|9;Luster|3|150|1|;Luster Jostedal|7|||;Luster nær Jostedalsbreen|3|150|1|8.5;Luster Veitastrond|7|||;Lyngdal|3|150|0.5|;Lyngen|5|150|1|;Lærdal|2.5|150|1|;Lødingen|4.5|150|1|;Lørenskog|4|250|1|6.5;Løten|4|350|1|6.5;Malvik|3.5|150|1|;Mandal|3.5|150|0.5|;Marker|3|250|0.5|;Marnardal|4.5|150|0.5|6.5;Masfjorden|3|150|1|;Meland|1.5|150|0.5|;Meldal|4.5|250|1|7.5;Melhus|4|150|1|;Meløy|4|150|1|9;Meråker|4.5|250|1|7.5;Midsund|3|150|1|;Midtre Gauldal|4.5|150|1|7.5;Modalen|3|150|1|;Modum|4.5|150|1|6.5;Molde|3.5|150|1|;Moskenes|4|150|1|;Moss|3|150|0.5|;Mosvik|4.5|150|1|;Målselv|5|150|1|;Måsøy|5|150|1|;Namdalseid|5|150|1|;Namsos|4|150|1|;Namsos Bangsund|5|150|1|;Namsskogan|7.5|350|1|9;Nannestad|4.5|250|1|6.5;Narvik|4.5|150|1|;Naustdal|3|150|1|;Nedre Eiker|3.5|150|1|6.5;Nes|3.5|250|1|6.5;Nes|3.5|250|1|6.5;Nesna|4|150|1|;Nesodden|3.5|150|1|;Nesset|4.5|150|1|;Nissedal|4.5|350|1|6.5;Nittedal|4.5|250|1|6.5;Nome|4|150|1|6.5;Nord-Aurdal|4.5|450|1|6.5;Nord-Fron|4|350|1|6.5;Nord-Odal|3.5|250|1|6.5;Norddal|4.5|150|1|;Nordkapp|5|150|1|;Nordre Land|4.5|250|1|6.5;Nordreisa|5|150|1|;Nore og Uvdal|4.5|450|1|6.5;Nore og Uvdal nær Hordaland|4.5|450|1|7.5;Notodden|4|150|1|6.5;Nærøy|4|150|1|;Nøtterøy|3|150|0.5|;Odda|2.5|150|1|;Odda nær Folgefonna|2.5|150|1|8.5;Oppdal|4.5|650|1|7.5;Oppegård|3.5|150|1|;Orkdal|4.5|150|1|;Os|4.5|750|1|6.5;Os|2|150|0.5|;Os nær Trøndelag|4.5|750|1|7.5;Osen|3|150|1|;Oslo 0–150 moh|3.5|||;Oslo 151–250 moh|4.5|||;Oslo 251–350 moh|5.5|||;Oslo over 351 moh|6.5|||;Osterøy|2.5|150|0.5|;Overhalla|5.5|150|1|7.5;Porsanger|4.5|150|1|;Porsgrunn|4|150|1|;Radøy|1.5|150|0.5|;Rakkestad|3|250|0.5|;Ramnes (Re)|4.5|150|0.5|6.5;Rana|5|150|1|9;Randaberg|1.5|150|0.5|;Rauma|4.5|150|1|;Rendalen|4|450|1|6.5;Rennebu|4.5|550|1|7.5;Rennesøy|1.5|150|0.5|;Rindal|4.5|250|1|7.5;Ringebu|4|350|1|6.5;Ringerike|3.5|150|1|6.5;Ringsaker|3.5|250|1|6.5;Rissa|4.5|150|1|;Risør|4.5|150|0.5|;Roan|3|150|1|;Rollag|4.5|350|1|6.5;Rygge|3|150|0.5|;Råde|2.5|150|0.5|;Rælingen|4|250|1|6.5;Rødøy|4|150|1|9;Rømskog|3|250|0.5|;Røros|4.5|750|1|7.5;Røst|1.5|150|1|;Røyken|4|150|1|;Røyrvik|8|550|1|9;Salangen|5|150|1|;Saltdal|4.5|150|1|;Samnanger|3|150|1|;Sande|4.5|150|0.5|;Sande|2.5|150|1|;Sandefjord|4|150|0.5|;Sandnes|1.5|150|0.5|;Sandøy|2.5|150|1|;Sarpsborg|3|150|0.5|;Sauda|2.5|150|1|;Sauherad|4|150|1|6.5;Sel|3.5|350|1|6.5;Selbu|3.5|250|1|7.5;Selje|2.5|150|1|;Seljord|4.5|250|1|6.5;Sigdal|4.5|250|1|6.5;Siljan|5|250|1|6.5;Sirdal|3|150|1|6.5;Sirdal nær Rogaland|3|150|1|7.5;Skaun|4|150|1|;Skedsmo|4|250|1|6.5;Ski|3.5|250|1|6.5;Skien|4|150|1|;Skiptvedt|3|250|0.5|;Skjerstad|4.5|150|1|;Skjervøy|4.5|150|1|;Skjåk|3.5|450|1|6.5;Skjåk nær Sogn og Fj. / Møre og Romsdal|3.5|450|1|7.5;Skodje|4|150|1|;Skånland|5|150|1|;Smøla|2.5|150|1|;Snillfjord|4|150|1|;Snåsa|4|150|1|7.5;Sogndal|2.5|150|1|;Sokndal|2.5|150|0.5|;Sola|1.5|150|0.5|;Solund|2|150|1|;Songdalen|4.5|150|0.5|6.5;Sortland|5|150|1|;Spydeberg|3|250|0.5|;Stange|3.5|350|1|6.5;Stavanger|1.5|150|0.5|;Steigen|4|150|1|;Steinkjer|3.5|150|1|;Stjørdal|3.5|150|1|;Stokke|4.5|150|0.5|;Stor-Elvdal|4|450|1|6.5;Stord|2|150|0.5|;Stordal|4.5|150|1|;Storfjord|5|150|1|;Strand|1.5|150|1|;Stranda|4.5|150|1|;Stryn|3.5|150|1|;Stryn nær Jostedalsbreen|3.5|150|1|8.5;Sula|3|150|1|;Suldal|2.5|150|1|;Sund|1.5|150|0.5|;Sunndal|4.5|150|1|;Surnadal|4.5|150|1|;Sveio|2|150|0.5|;Svelvik|4|150|0.5|;Sykkylven|4.5|150|1|;Søgne|3.5|150|0.5|;Sømna|4|150|1|;Søndre Land|4.5|350|1|6.5;Sør-Aurdal|4.5|350|1|6.5;Sør-Fron|4|350|1|6.5;Sør-Odal|3.5|250|1|6.5;Sør-Varanger|4|150|1|;Sørfold|4.5|150|1|;Sørreisa|5.5|150|1|;Sørum|4|250|1|6.5;Time|1.5|150|0.5|7.5;Tingvoll|4.5|150|1|;Tinn|4.5|350|1|6.5;Tjeldsund|4.5|150|1|;Tjøme|3|150|0.5|;Tokke|4.5|150|1|6.5;Tolga|4.5|650|1|6.5;Torsken|5|150|1|;Tranøy|5.5|150|1|;Tromsø|6|150|1|;Trondheim|3.5|150|1|;Trysil|4|450|1|6.5;Træna|1.5|150|1|;Trøgstad|3|250|0.5|;Tustna|3.5|150|1|;Tvedestrand|4.5|150|0.5|;Tydal|4.5|550|1|7.5;Tynset|4|550|1|6.5;Tynset Kvikne|4.5|550|1|6.5;Tynset nær Trøndelag|4|550|1|7.5;Tysfjord|4.5|150|1|;Tysnes|2|150|0.5|;Tysvær|2|150|0.5|;Tønsberg|4|150|0.5|;Ullensaker|4.5|350|1|6.5;Ullensvang|2.5|150|1|;Ullensvang nær Folgefonna|2.5|150|1|8.5;Ulstein|3|150|1|;Ulvik|3|150|1|;Unjárgga / Nesseby|4|150|1|;Utsira|1.5|150|0.5|;Vadsø|4|150|1|;Vaksdal|3|150|1|;Valle|5|450|1|6.5;Vang|4.5|550|1|6.5;Vang nær Sogn og Fj.|4.5|550|1|7.5;Vanylven|3|150|1|;Vardø|4|150|1|;Vefsn|5|150|1|;Vefsn langs fjorden|4|150|1|;Vefsn Mosjøen|4|150|1|;Vega|2.5|150|1|;Vegårdshei|4.5|250|1|6.5;Vennesla|4.5|150|0.5|6.5;Verdal|3.5|150|1|;Verran|5|150|1|;Vestby|3.5|150|1|;Vestnes|3.5|150|1|;Vestre Slidre|4.5|450|1|6.5;Vestre Toten|4.5|450|1|6.5;Vestvågøy|4|150|1|;Vevelstad|4|150|1|;Vik|2.5|150|1|;Vikna|2.5|150|1|;Vindafjord|2|150|0.5|;Vinje|5|550|1|6.5;Vinje nær Rogaland / Hordaland|5|550|1|7.5;Volda|4|150|1|;Voss|3|150|1|7.5;Vågan|4|150|1|;Vågsøy|2.5|150|1|;Vågå|3.5|450|1|6.5;Våle (Re)|4.5|150|0.5|;Våler|3|150|0.5|;Våler|4|250|1|6.5;Værøy|1.5|150|1|;Åfjord|3|150|1|;Ål|4.5|550|1|6.5;Ål nær Sogn og Fj.|4.5|550|1|7.5;Ålesund|3|150|1|;Åmli|4.5|250|1|6.5;Åmot|4|350|1|6.5;Årdal|2.5|150|1|;Ås|3.5|150|1|;Åseral|4.5|350|1|6.5;Åsnes|3.5|250|1|6.5;Øksnes|4.5|150|1|;Ølen|2|150|0.5|;Ørland|3|150|1|;Ørskog|4|150|1|;Ørsta|4.5|150|1|;Østre Toten|4.5|350|1|6.5;Øvre Eiker|4.5|150|1|6.5;Øyer|4|250|1|6.5;Øygarden|1.5|150|0.5|;Øystre Slidre|4.5|650|1|6.5';
+const SNOW = SNOW_RAW.split(';').map(r => { const [n,a,b,c,d] = r.split('|'); const f = v => v==='' ? null : +v; return {n, sk0:f(a), hg:f(b), dsk:f(c), max:f(d)}; });
+function snowAt(k, alt){ // sk ved byggestedet: grunnverdi + Δsk for hver påbegynte 100 m over Hg, begrenset til sk,maks
+  if(!k) return null; let s = k.sk0; if(k.hg!=null && k.dsk!=null && alt > k.hg){ s += Math.ceil((alt-k.hg)/100)*k.dsk; if(k.max!=null) s = Math.min(s, k.max); } return s; }
+const JOISTS = ['48x98','48x123','48x148','48x173','48x198','48x223'];
+const BEAMS = ['48x148','48x198','48x223','2x48x148','2x48x198','2x48x223'];
+const POSTS = ['98x98','98x148','148x148'];
+const BOARDS = {21:400, 28:600, 34:800}; // bordtykkelse mm → største c/c for bjelkene mm
+const CCS = [300,400,600];
+function secOf(s){ const m = s.match(/^(?:(\d)x)?(\d+)x(\d+)$/); const n = +(m[1]||1); return {n, b:n*+m[2], h:+m[3], txt:s.replace(/x/g,'×')}; }
+// Konstruksjonsvirke C24, trykkimpregnert, klimaklasse 3 (NS-EN 338 / NS-EN 1995-1-1 med norsk NA)
+const C24 = {fmk:24, fvk:4, fc0k:21, E:11000, E05:7400, rho:4.2};
+const GM = 1.25, KDEF = 2.0, KCR = 0.67;
+const KMOD = {M:0.65, S:0.70}; // middels lang (nyttelast) og kortvarig (snø) i klimaklasse 3
+const PSI0 = 0.7, PSI2_A = 0.3, PSI2_S = 0.2;
+// Lastkombinasjoner i bruddgrense (NS-EN 1990 NA, 6.10a/6.10b): faktorer for egenlast, nyttelast og snø, med kmod for korteste last i kombinasjonen
+const COMBOS = [{g:1.2,q:1.5,s:0,k:KMOD.M,n:'nyttelast alene'}, {g:1.2,q:1.5,s:1.05,k:KMOD.S,n:'nyttelast + snø'}, {g:1.2,q:1.05,s:1.5,k:KMOD.S,n:'snø + nyttelast'}, {g:1.35,q:1.05,s:1.05,k:KMOD.S,n:'6.10a'}];
+function vcfg(it){ const d = {hgt:60, att:true, cc:600, joist:'48x198', beam:'2x48x198', post:'98x98', board:28, kom:'', alt:0, sk:null, q:4, nsp:0, npo:0, gp:150, braced:true, name:''};
+  for(const k in d) if(it[k]===undefined) it[k] = d[k]; return it; }
+// Fritt opplagt bjelke med felt L (m), tverrsnitt b×h (mm) og jevnt fordelte laster (kN/m). Utnyttelse for moment, skjær og nedbøyning.
+function beamCheck(b, h, L, wG, wQ, wS){
+  const Wel = b*h*h/6, I = b*h*h*h/12, kh = h < 150 ? Math.min(1.3, Math.pow(150/h, 0.2)) : 1;
+  let um = 0, uv = 0, gov = COMBOS[0], wmax = 0;
+  COMBOS.forEach(c => { const w = c.g*wG + c.q*wQ + c.s*wS, M = w*L*L/8, V = w*L/2;
+    const m = (M*1e6/Wel)/(kh*c.k*C24.fmk/GM), v = (1.5*V*1e3/(KCR*b*h))/(c.k*C24.fvk/GM);
+    if(m > um){ um = m; gov = c; } uv = Math.max(uv, v); wmax = Math.max(wmax, w); });
+  const defl = w => 5*w*Math.pow(L,4)/(384*C24.E*1e3*I*1e-12)*1000; // mm
+  const dG = defl(wG), dQ = defl(wQ), dS = defl(wS);
+  const inst = Math.max(dQ + PSI0*dS, dS + PSI0*dQ);
+  const fin = dG*(1+KDEF) + (dQ >= dS ? dQ*(1+PSI2_A*KDEF) + PSI0*dS*(1+PSI2_S*KDEF) : dS*(1+PSI2_S*KDEF) + PSI0*dQ*(1+PSI2_A*KDEF));
+  const ud = Math.max(inst/(L*1000/300), fin/(L*1000/250));
+  return {um, uv, ud, u:Math.max(um,uv,ud), inst, fin, gov, wmax, L};
+}
+// Stolpe i trykk med knekking (NS-EN 1995-1-1 6.3.2). N i kN, Lp i m, ke knekklengdefaktor.
+function postCheck(b, h, Lp, ke, wG, wQ, wS, Lb){
+  const A = b*h, i = Math.min(b,h)/Math.sqrt(12), lam = ke*Lp*1000/i, lrel = lam/Math.PI*Math.sqrt(C24.fc0k/C24.E05);
+  const kk = 0.5*(1 + 0.2*(lrel-0.3) + lrel*lrel), kc = lrel <= 0.3 ? 1 : Math.min(1, 1/(kk + Math.sqrt(Math.max(0, kk*kk - lrel*lrel))));
+  let u = 0, N = 0;
+  COMBOS.forEach(c => { const n = (c.g*wG + c.q*wQ + c.s*wS)*Lb; N = Math.max(N, n); u = Math.max(u, (n*1e3/A)/(kc*c.k*C24.fc0k/GM)); });
+  return {u, kc, lam, N};
+}
+function verCalc(it){
+  vcfg(it); const u2m = S.scale/100, B = it.w*u2m, D = it.h*u2m, cc = it.cc/1000;
+  const J = secOf(it.joist), Bm = secOf(it.beam), P = secOf(it.post);
+  const kom = SNOW.find(k => k.n===it.kom) || null, skAuto = snowAt(kom, +it.alt||0), sk = it.sk!=null ? it.sk : skAuto;
+  const s = sk!=null ? 0.8*sk : 0; // snø på flatt dekke: formfaktor 0,8, Ce = Ct = 1,0
+  const G = it.board/1000*C24.rho + J.b*J.h*1e-6*C24.rho/cc + 0.10, Q = +it.q || 0;
+  // bjelkelag: antall felt (dragere) velges automatisk til bjelken holder
+  let nsp = it.nsp > 0 ? it.nsp : 0, jr = null;
+  if(!nsp){ for(nsp=1; nsp<8; nsp++){ jr = beamCheck(J.b, J.h, D/nsp, G*cc, Q*cc, s*cc); if(jr.u <= 1) break; } if(nsp===8) nsp = 7; }
+  else jr = beamCheck(J.b, J.h, D/nsp, G*cc, Q*cc, s*cc);
+  const Lj = D/nsp, nj = Math.ceil(B/cc - 1e-9) + 1, nbp = it.att ? nsp : nsp + 1; // dragere på stolper
+  const trib = nsp >= 2 ? Lj : Lj/2, wbG = trib*G + Bm.b*Bm.h*1e-6*C24.rho, wbQ = trib*Q, wbS = trib*s;
+  let npo = it.npo > 1 ? it.npo : 0, br = null;
+  if(!npo){ for(npo=2; npo<13; npo++){ br = beamCheck(Bm.b, Bm.h, B/(npo-1), wbG, wbQ, wbS); if(br.u <= 1) break; } if(npo===13) npo = 12; }
+  else br = beamCheck(Bm.b, Bm.h, B/(npo-1), wbG, wbQ, wbS);
+  const Lb = B/(npo-1), Lp = Math.max(0.3, it.hgt/100 - (Bm.h + J.h + it.board)/1000), ke = (it.att || it.braced) ? 1 : 2;
+  const pr = postCheck(P.b, P.h, Lp, ke, wbG, wbQ, wbS, Lb), nposts = npo*nbp;
+  const gp = +it.gp > 0 ? +it.gp : 150, fA = pr.N/gp, fSide = Math.sqrt(fA)*100;
+  const ledger = it.att ? Math.max(...COMBOS.map(c => (c.g*G + c.q*Q + c.s*s)*Lj/2)) : 0;
+  const qd = Math.max(...COMBOS.map(c => c.g*G + c.q*Q + c.s*s));
+  const boardsOk = (BOARDS[it.board] || 600) >= it.cc, rail = it.hgt >= 50;
+  const nboards = Math.ceil(D/0.126), boardLm = nboards*B;
+  return {B, D, A:B*D, cc, J, Bm, P, kom, skAuto, sk, s, G, Q, qd, nsp, jr, Lj, nj, nbp, trib, npo, br, Lb, Lp, ke, pr, nposts, fA, fSide, ledger, boardsOk, rail, nboards, boardLm,
+    ok: jr.u <= 1 && br.u <= 1 && pr.u <= 1 && boardsOk};
+}
+function drawVeranda(it, g){
+  const C = verCalc(it), w = it.w, h = it.h, x = -w/2, y = -h/2, k = 1/view.k, inset = Math.min(toU(20), h/4);
+  el('rect', {x, y, width:w, height:h, class:'vdeck'}, g);
+  const pitch = toU(12.6), ccU = toU(it.cc/10);
+  if(pitch*view.k > 2.5) for(let yy = y+pitch; yy < y+h-0.5; yy += pitch) el('line', {x1:x, y1:yy, x2:x+w, y2:yy, class:'vboard'}, g);
+  if(ccU*view.k > 4) for(let xx = x+ccU; xx < x+w-0.5; xx += ccU) el('line', {x1:xx, y1:y, x2:xx, y2:y+h, class:'vjoist'}, g);
+  const y0 = y + (it.att ? 0 : inset), y1 = y + h - inset, ys = [];
+  for(let i=0; i<=C.nsp; i++) ys.push(y0 + (y1-y0)*i/C.nsp);
+  ys.forEach((yy, i) => { if(i===0 && it.att){ el('line', {x1:x, y1:yy, x2:x+w, y2:yy, class:'vhouse'}, g); return; }
+    el('line', {x1:x+inset/2, y1:yy, x2:x+w-inset/2, y2:yy, class:'vbeam'}, g);
+    const pw = toU(C.P.b/10), ph = toU(C.P.h/10);
+    for(let j=0; j<C.npo; j++){ const px = x + inset + (w-2*inset)*j/(C.npo-1); el('rect', {x:px-pw/2, y:yy-ph/2, width:pw, height:ph, class:'vpost'}, g); } });
+  if(!C.ok) el('text', {x:0, y:0, 'text-anchor':'middle', 'dominant-baseline':'central', class:'dim', style:'font-size:'+(11*k)+'px'}, g).textContent = 'bæring holder ikke';
+}
+function verandaSnap(o){ // hussiden festes til nærmeste veggflate
+  const hit = nearestWall(o.x, o.y, o.h/2 + toU(80)); if(!hit) return;
+  const w = hit.w, g = geom(w), side = ((o.x-w.x1)*g.nx + (o.y-w.y1)*g.ny) >= 0 ? 1 : -1, nx = g.nx*side, ny = g.ny*side;
+  const fx = w.x1 + g.ux*hit.c + nx*w.t/2, fy = w.y1 + g.uy*hit.c + ny*w.t/2;
+  o.x = fx + nx*o.h/2; o.y = fy + ny*o.h/2; o.rot = Math.round(Math.atan2(-nx, ny)*180/Math.PI);
+}
+let vTgt = 'w'; // hva neste lasermåling setter på valgt veranda: w (bredde), h (dybde), hgt (høyde over terreng)
+function verandaMeasure(o, c){
+  const nxt = {w:'h', h:'hgt', hgt:'w'}, lbl = {w:'Bredde', h:'Dybde', hgt:'Høyde over terreng'}, t = vTgt;
+  mutate(() => { if(t==='hgt') o.hgt = c; else o[t] = toU(c); }); vTgt = nxt[t]; render();
+  toast(lbl[t] + ' ' + fmtMeas(c) + '. Neste måling er ' + lbl[vTgt].toLowerCase() + '.');
+}
+function verName(it){ const vs = S.items.filter(i => i.kind==='veranda'); return it.name || ('Veranda' + (vs.length > 1 ? ' ' + (vs.indexOf(it)+1) : '')); }
+function renderVerandaProps(o, p){
+  const C = verCalc(o), h = s => p.insertAdjacentHTML('beforeend', s);
+  h(`<p class="sel-title">${verName(o)}</p>
+    <div class="row"><label for="pW">Bredde langs huset (${unit})</label><input id="pW" type="number" step="${ustep()}" value="${inVal(o.w)}"></div>
+    <div class="row"><label for="pH">Dybde ut fra huset (${unit})</label><input id="pH" type="number" step="${ustep()}" value="${inVal(o.h)}"></div>
+    <div class="row"><label for="pHgt">Høyde over terreng (${unit})</label><input id="pHgt" type="number" step="${ustep()}" value="${cIn(o.hgt)}"></div>
+    <label class="chk"><input id="pAtt" type="checkbox"${o.att?' checked':''}>Festet til husveggen (veggbjelke)</label>
+    ${api()?`<div class="row"><label>Neste måling</label><div class="seg"><button data-vt="w" aria-pressed="${vTgt==='w'}">Bredde</button><button data-vt="h" aria-pressed="${vTgt==='h'}">Dybde</button><button data-vt="hgt" aria-pressed="${vTgt==='hgt'}">Høyde</button></div></div>`:''}
+    <p class="stat">${C.ok ? '<span class="ok">Bæringen holder</span>' : '<span class="bad">Bæringen holder ikke</span>'} med bjelker ${C.J.txt} c/c ${o.cc}, ${C.nbp} drager${C.nbp>1?'e':''} ${C.Bm.txt} og ${C.nposts} stolper ${C.P.txt}.${C.rail ? ' Krever rekkverk.' : ''}${o.hgt > 100 || C.D > 4 ? ' Søknadspliktig.' : ''}</p>
+    <p class="muted">Dra verandaen inntil en vegg, så fester hussiden seg til veggen. Den røde linja er hussiden.</p>
+    <div class="btns"><button id="pVer">Bæring og regler</button><button id="pRot">Roter 90°</button><button id="pDup">Dupliser</button><button id="pDel" class="danger">Slett</button></div>`);
+  $('pW').onchange = e => { const v = fromIn(+e.target.value); if(v > 0) mutate(() => { o.w = v; }); };
+  $('pH').onchange = e => { const v = fromIn(+e.target.value); if(v > 0) mutate(() => { o.h = v; }); };
+  $('pHgt').onchange = e => { const v = cFrom(+e.target.value); if(v >= 0) mutate(() => { o.hgt = v; }); };
+  $('pAtt').onchange = e => mutate(() => { o.att = e.target.checked; });
+  p.querySelectorAll('[data-vt]').forEach(b => b.onclick = () => { vTgt = b.dataset.vt; render(); });
+  $('pVer').onclick = () => openVer(o.id);
+  $('pRot').onclick = () => mutate(() => { o.rot = (o.rot + 90) % 360; });
+  $('pDup').onclick = () => mutate(() => { const c = Object.assign({}, o, {id:nid('i'), x:o.x+15, y:o.y+15}); S.items.push(c); sel = {type:'item', id:c.id}; });
+  $('pDel').onclick = () => mutate(() => { S.items = S.items.filter(x => x!==o); sel = null; });
+}
+let verTgt = null; // veranda som vises øverst i arket
+function openVer(id){
+  const vs = S.items.filter(i => i.kind==='veranda');
+  if(!vs.length){ toast('Legg til en veranda fra «Legg til» først'); return; }
+  verTgt = id || (sel && sel.type==='item' && vs.some(v => v.id===sel.id) ? sel.id : vs[0].id);
+  $('verSheet').hidden = false; renderVer(true);
+}
+function closeVer(){ $('verSheet').hidden = true; }
+const kn = (v, d) => v.toFixed(d==null ? 2 : d).replace('.', ',');
+const pct = u => Math.round(u*100) + ' %';
+const ubar = (lbl, u) => `<span>${lbl}</span><span class="bar"><i class="${u>1?'hi':''}" style="width:${Math.min(100, u*100)}%"></i></span><span class="pct${u>1?' bad':''}">${pct(u)}</span>`;
+const selOpts = (arr, cur, f) => arr.map(v => `<option value="${v}"${String(v)===String(cur)?' selected':''}>${f ? f(v) : v}</option>`).join('');
+function renderVer(force){
+  const b = $('verBody'), a = document.activeElement;
+  if(!force && a && b.contains(a) && a.tagName==='INPUT' && a.type!=='checkbox') return;
+  const vs = S.items.filter(i => i.kind==='veranda');
+  if(!vs.length){ b.innerHTML = '<p class="muted">Ingen veranda på tegningen. Legg til en fra «Legg til» og dra den inntil husveggen.</p>'; return; }
+  const list = vs.slice().sort((p, q) => (p.id===verTgt ? -1 : q.id===verTgt ? 1 : 0));
+  b.innerHTML = list.map(it => verCards(it)).join('');
+  list.forEach(it => { const card = b.querySelector(`[data-v="${it.id}"]`); if(!card) return;
+    card.querySelectorAll('[data-f]').forEach(inp => { inp.onchange = () => mutate(() => { const f = inp.dataset.f;
+      if(inp.type==='checkbox') it[f] = inp.checked;
+      else if(f==='w' || f==='h'){ const v = fromIn(+inp.value); if(v > 0) it[f] = v; }
+      else if(f==='hgt'){ const v = cFrom(+inp.value); if(v >= 0) it[f] = v; }
+      else if(f==='kom'){ it.kom = inp.value.trim(); if(SNOW.some(k => k.n===it.kom)) it.sk = null; }
+      else if(f==='sk'){ it.sk = inp.value==='' ? null : Math.max(0, +inp.value); }
+      else if(f==='name') it.name = inp.value.trim();
+      else if(f==='joist' || f==='beam' || f==='post') it[f] = inp.value;
+      else it[f] = +inp.value; }); });
+    const del = card.querySelector('[data-act="sel"]'); if(del) del.onclick = () => { sel = {type:'item', id:it.id}; closeVer(); render(); }; });
+}
+function verCards(it){
+  const C = verCalc(it), U = unit, tgt = it.id===verTgt;
+  const komTxt = C.kom ? `sk = ${kn(C.sk,1)} kN/m² (grunnverdi ${kn(C.kom.sk0,1)}${C.kom.hg!=null ? `, +${kn(C.kom.dsk,1)} per 100 m over ${C.kom.hg} moh` : ''}${C.kom.max!=null ? `, høyst ${kn(C.kom.max,1)}` : ''})` : it.sk!=null ? `sk = ${kn(C.sk,1)} kN/m² (egen verdi)` : '<span class="warn">Velg kommune eller skriv inn snølast, ellers regnes det uten snø.</span>';
+  const rules = [];
+  if(it.hgt <= 50) rules.push(['ok', `Høyde ${kn(it.hgt/100,2)} m over terreng: en terrasse som ikke er høyere enn 0,5 m regnes ikke som et tiltak etter plan- og bygningsloven (SAK10 § 4-1, veiledningen). Kommuneplan og reguleringsplan kan likevel gi begrensninger.`]);
+  else if(it.hgt <= 100 && C.D <= 4) rules.push(['ok', `Høyde ${kn(it.hgt/100,2)} m og dybde ${kn(C.D,2)} m: unntatt fra søknadsplikt etter SAK10 § 4-1 bokstav d dersom den er forbundet med bygningen, ikke overbygd, har rekkverk på høyst 1,2 m og ligger minst 1,0 m fra nabogrensen. Terrassen regnes med i bebygd areal (BYA).`]);
+  else { if(it.hgt > 100) rules.push(['bad', `Høyde ${kn(it.hgt/100,2)} m over terreng er mer enn 1,0 m: søknadspliktig. Under 15 m² BYA kan den søkes som mindre tilbygg uten ansvarlig foretak (SAK10 § 4-1 bokstav b, minst 4,0 m fra nabogrensen). Ellers kreves full søknad med ansvarlig foretak.`]);
+    if(C.D > 4) rules.push(['bad', `Dybden ${kn(C.D,2)} m er mer enn 4,0 m ut fra fasadelivet: unntaket i SAK10 § 4-1 bokstav d gjelder ikke, og verandaen er søknadspliktig.`]); }
+  if(C.rail) rules.push([it.hgt > 300 ? 'bad' : 'warn', `Nivåforskjell ${kn(it.hgt/100,2)} m til terrenget: rekkverk kreves når forskjellen er 0,5 m eller mer (TEK17 § 12-11). Høyde minst 1,0 m målt fra dekket, åpninger høyst 0,10 m opp til minst 0,75 m, og uten liggende spiler som barn kan klatre i (TEK17 § 12-15).${it.hgt > 300 ? '' : ' Nivåforskjell under 3,0 m kan også sikres på annen forsvarlig måte, for eksempel fast plantekasse.'}`]);
+  else rules.push(['ok', 'Nivåforskjell under 0,5 m: rekkverk er ikke påkrevd (TEK17 § 12-11).']);
+  if(!it.att) rules.push(['warn', 'Frittstående veranda må avstives mot sideveis bevegelse med skråstag eller innspente stolper. ' + (it.braced ? 'Regnet som avstivet.' : 'Regnet som uavstivet (dobbel knekklengde på stolpene).')]);
+  else rules.push(['warn', `Veggbjelken bærer ${kn(C.ledger,1)} kN per meter (dimensjonerende). Fest den med gjennomgående bolter eller godkjente skruer i husets bærende konstruksjon, med beslag eller avstandsskiver så vann ikke blir stående mot kledningen. Mange foretrekker egne stolper også ved huset for å unngå fuktskader.`]);
+  rules.push(['warn', 'Fundamentene må gå til frostfri dybde eller stå på drenerende masser. Bruk stolpesko eller beslag som løfter stolpen fra betongen.']);
+  const gov = C.jr.gov.n;
+  const sec = (lbl, opts, f, cur, fmt) => `<div class="row"><label>${lbl}</label><select data-f="${f}">${selOpts(opts, cur, fmt)}</select></div>`;
+  return `<div class="card${tgt?' tgtc':''}" data-v="${it.id}">
+    <h2>${verName(it)} · ${kn(C.B,2)} × ${kn(C.D,2)} m · ${m2(C.A)}</h2>
+    <div class="row"><label>Navn</label><input data-f="name" type="text" value="${(it.name||'').replace(/"/g,'&quot;')}" placeholder="${verName(it)}"></div>
+    <div class="row"><label>Bredde langs huset (${U})</label><input data-f="w" type="number" step="${ustep()}" value="${inVal(it.w)}"></div>
+    <div class="row"><label>Dybde ut fra huset (${U})</label><input data-f="h" type="number" step="${ustep()}" value="${inVal(it.h)}"></div>
+    <div class="row"><label>Høyde over terreng (${U})</label><input data-f="hgt" type="number" step="${ustep()}" value="${cIn(it.hgt)}"></div>
+    <label class="chk"><input data-f="att" type="checkbox"${it.att?' checked':''}>Festet til husveggen med veggbjelke</label>
+    ${it.att ? '' : `<label class="chk"><input data-f="braced" type="checkbox"${it.braced?' checked':''}>Avstivet med skråstag</label>`}
+    <div class="row"><label>Kommune</label><input data-f="kom" list="komList" type="text" value="${it.kom.replace(/"/g,'&quot;')}" placeholder="skriv og velg"></div>
+    <div class="row"><label>Høyde over havet (m)</label><input data-f="alt" type="number" step="10" min="0" value="${it.alt||0}"></div>
+    <div class="row"><label>Egen snølast sk (kN/m²)</label><input data-f="sk" type="number" step="0.5" min="0" value="${it.sk!=null?it.sk:''}" placeholder="fra kommunen"></div>
+    <p class="muted">${komTxt}</p>
+    <div class="row"><label>Nyttelast (kN/m²)</label><input data-f="q" type="number" step="0.5" min="0" value="${it.q}"></div>
+    <div class="btns"><button data-act="sel">Vis på tegningen</button></div>
+  </div>
+  <div class="card"><h2>Laster</h2>
+    <div class="kv"><span>Egenlast (bord, bjelker, dragere, rekkverk)</span><span>${kn(C.G)} kN/m²</span>
+    <span>Nyttelast (balkong og terrasse, kategori A)</span><span>${kn(C.Q,1)} kN/m²</span>
+    <span>Snølast på dekket (0,8 · sk)</span><span>${kn(C.s)} kN/m²</span>
+    <span class="tot">Dimensjonerende last, bruddgrense</span><span class="tot">${kn(C.qd)} kN/m²</span></div>
+    <p class="muted">Lastkombinasjonene følger NS-EN 1990 med norsk tillegg (6.10a og 6.10b, ψ0 = 0,7). Avgjørende kombinasjon for bjelkelaget: ${gov}.</p>
+  </div>
+  <div class="card"><h2>Bjelkelag</h2>
+    ${sec('Bjelke (mm)', JOISTS, 'joist', it.joist, v => v.replace(/x/g,'×'))}
+    ${sec('Avstand c/c (mm)', CCS, 'cc', it.cc)}
+    ${sec('Antall felt', [0,1,2,3,4,5,6], 'nsp', it.nsp, v => v===0 ? 'Automatisk (' + C.nsp + ')' : v)}
+    <div class="kv"><span>Spennvidde per felt</span><span>${kn(C.Lj)} m</span><span>Antall bjelker</span><span>${C.nj} stk à ${kn(C.D)} m</span><span>Last per bjelke (dim.)</span><span>${kn(C.jr.wmax)} kN/m</span></div>
+    <div class="util">${ubar('Moment', C.jr.um)}${ubar('Skjær', C.jr.uv)}${ubar('Nedbøyning', C.jr.ud)}</div>
+    <p class="stat">${C.jr.u <= 1 ? '<span class="ok">Holder.</span>' : '<span class="bad">Holder ikke.</span> Velg større bjelke, tettere c/c eller flere felt.'} Nedbøyning ${kn(C.jr.inst,1)} mm av korttidslast (grense ${kn(C.Lj*1000/300,0)} mm) og ${kn(C.jr.fin,1)} mm over tid (grense ${kn(C.Lj*1000/250,0)} mm).</p>
+  </div>
+  <div class="card"><h2>Dragere</h2>
+    ${sec('Drager (mm)', BEAMS, 'beam', it.beam, v => v.replace(/x/g,'×'))}
+    ${sec('Stolper per drager', [0,2,3,4,5,6,7,8,9,10], 'npo', it.npo, v => v===0 ? 'Automatisk (' + C.npo + ')' : v)}
+    <div class="kv"><span>Dragere på stolper</span><span>${C.nbp} stk à ${kn(C.B)} m${it.att ? ' + veggbjelke' : ''}</span><span>Avstand mellom stolpene</span><span>${kn(C.Lb)} m</span><span>Last per drager (dim.)</span><span>${kn(C.br.wmax)} kN/m</span></div>
+    <div class="util">${ubar('Moment', C.br.um)}${ubar('Skjær', C.br.uv)}${ubar('Nedbøyning', C.br.ud)}</div>
+    <p class="stat">${C.br.u <= 1 ? '<span class="ok">Holder.</span>' : '<span class="bad">Holder ikke.</span> Velg større drager eller flere stolper.'} Dragerne ligger under bjelkene, den ytterste ca. 20 cm inn fra kanten. ${C.Bm.n > 1 ? 'Dobbel drager skrus eller boltes sammen med forskjøvne skjøter over stolpene.' : ''}</p>
+  </div>
+  <div class="card"><h2>Stolper og fundament</h2>
+    ${sec('Stolpe (mm)', POSTS, 'post', it.post, v => v.replace(/x/g,'×'))}
+    <div class="row"><label>Tillatt grunntrykk (kPa)</label><input data-f="gp" type="number" step="25" min="25" value="${it.gp}"></div>
+    <div class="kv"><span>Antall stolper</span><span>${C.nposts} stk</span><span>Stolpelengde over fundament</span><span>ca. ${kn(C.Lp)} m</span><span>Last per stolpe (dim.)</span><span>${kn(C.pr.N,1)} kN</span><span>Fundament, såleflate</span><span>${kn(C.fA*1e4,0)} cm² (ca. ${kn(C.fSide,0)} × ${kn(C.fSide,0)} cm)</span></div>
+    <div class="util">${ubar('Trykk og knekking', C.pr.u)}</div>
+    <p class="stat">${C.pr.u <= 1 ? '<span class="ok">Holder.</span>' : '<span class="bad">Holder ikke.</span> Velg større stolpe eller flere stolper.'} Grunntrykk 150 kPa passer for fast sand og grus, 100 kPa for leire. Er du usikker, bruk større såle.</p>
+  </div>
+  <div class="card"><h2>Terrassebord</h2>
+    ${sec('Tykkelse (mm)', Object.keys(BOARDS).map(Number), 'board', it.board, v => v + ' mm (c/c inntil ' + BOARDS[v]/10 + ' cm)')}
+    <p class="stat">${C.boardsOk ? '<span class="ok">Bordene tåler avstanden mellom bjelkene.</span>' : '<span class="bad">For stor avstand mellom bjelkene for denne tykkelsen.</span> Velg tykkere bord eller tettere c/c.'} Regnet med 120 mm brede bord og 6 mm spalte, lagt parallelt med huset.</p>
+  </div>
+  <div class="card"><h2>Regler</h2><ul>${rules.map(([c, t]) => `<li class="${c}">${t}</li>`).join('')}</ul>
+    <p class="muted">Reglene er hentet fra SAK10 § 4-1 og TEK17 §§ 12-11 og 12-15 slik de gjelder i 2026. Sjekk alltid kommuneplanen, reguleringsplanen og avstand til nabogrense, vann- og avløpsledninger og vei. Er du i tvil, spør byggesaksavdelingen i kommunen.</p>
+  </div>
+  <div class="card"><h2>Materialliste</h2>
+    <div class="kv"><span>Bjelker ${C.J.txt}</span><span>${C.nj} stk à ${kn(C.D)} m = ${kn(C.nj*C.D,1)} m</span>
+    <span>Drager ${C.Bm.txt}</span><span>${C.nbp*C.Bm.n} stk à ${kn(C.B)} m = ${kn(C.nbp*C.Bm.n*C.B,1)} m${it.att ? `<br>+ veggbjelke 48×${C.J.h} à ${kn(C.B)} m` : ''}</span>
+    <span>Stolper ${C.P.txt}</span><span>${C.nposts} stk à ca. ${kn(C.Lp + 0.1,1)} m</span>
+    <span>Terrassebord ${it.board}×120</span><span>${C.nboards} stk à ${kn(C.B)} m = ${kn(C.boardLm,0)} m</span>
+    <span>Terrasseskruer</span><span>ca. ${Math.ceil(C.nboards*C.nj*2*1.1/100)*100} stk</span>
+    <span>Stolpesko / fundamenter</span><span>${C.nposts} stk</span></div>
+    <p class="muted">Lengdene er uten kapp og svinn. Kjøp litt ekstra, og velg standardlengder som passer.</p>
+  </div>
+  <div class="card"><h2>Forutsetninger</h2>
+    <p class="muted">Veiledende beregning etter NS-EN 1995-1-1 (Eurokode 5) med norsk tillegg: konstruksjonsvirke C24, trykkimpregnert, klimaklasse 3 (kmod 0,65 for nyttelast og 0,70 med snø, kdef 2,0), γM 1,25, kcr 0,67, fritt opplagte enkeltfelt uten utkraging, nedbøyning høyst L/300 av korttidslast og L/250 over tid. Snølasten på dekket er 0,8 ganger snølast på mark for kommunen (NS-EN 1991-1-3), uten tillegg for fonning mot husveggen. Nyttelast 4,0 kN/m² er verdien for balkonger i kategori A (NS-EN 1991-1-1 NA).</p>
+    <p class="muted">Beregningen erstatter ikke prosjektering av en fagperson. Er verandaen søknadspliktig, høyere enn 1,5 m eller skal bære noe mer enn folk og snø, få bæringen kontrollert.</p>
+  </div>`;
+}
 // ---------- palette ----------
 const PAL = [
   ['window','Vindu','<path d="M2 8h22v4H2z"/><path d="M2 10h22"/>'],
@@ -915,9 +1172,10 @@ const PAL = [
   ['peis','Peis','<rect x="7" y="4" width="12" height="12" stroke-width="2.4"/><rect x="10" y="7" width="6" height="6"/>'],
   ['pipe','Pipe','<rect x="7" y="4" width="12" height="12"/><path d="M10 10h6M13 7v6"/>'],
   ['terrasse','Terrasse','<rect x="2" y="3" width="22" height="14" stroke-dasharray="3 2"/>'],
+  ['veranda','Veranda','<rect x="2" y="3" width="22" height="14"/><path d="M7 3v14M13 3v14M19 3v14" stroke-dasharray="2 2"/><path d="M2 14h22"/>'],
   ['label','Tekst','<path d="M6 5h14M13 5v12"/>']
 ];
-const SIZES = {benk:[240,60],komfyr:[60,60],kum:[80,50],kjoleskap:[60,65],seng:[150,200],sofa:[200,90],bord:[160,90],trapp:[100,250],peis:[60,50],pipe:[50,50],terrasse:[300,200]};
+const SIZES = {benk:[240,60],komfyr:[60,60],kum:[80,50],kjoleskap:[60,65],seng:[150,200],sofa:[200,90],bord:[160,90],trapp:[100,250],peis:[60,50],pipe:[50,50],terrasse:[300,200],veranda:[400,300]};
 function buildPalette(){
   const p = $('palette');
   PAL.forEach(([k,label,icon])=>{ const b = document.createElement('button'); b.type='button'; b.innerHTML = `<svg viewBox="0 0 26 20">${icon}</svg>${label}`; b.onclick = () => addThing(k); p.appendChild(b); });
@@ -935,7 +1193,8 @@ function addThing(k){
     mutate(()=>{ const l={id:nid('l'),text:'Rom',x:c.x,y:c.y}; S.labels.push(l); sel={type:'label',id:l.id}; });
     setTimeout(()=>{ const t=$('pTxt'); if(t){ t.focus(); t.select(); } },0);
   } else {
-    mutate(()=>{ const [w,h] = SIZES[k]; const it = {id:nid('i'),kind:k,x:c.x,y:c.y,w:toU(w),h:toU(h),rot:0}; S.items.push(it); sel={type:'item',id:it.id}; });
+    mutate(()=>{ const [w,h] = SIZES[k]; const it = {id:nid('i'),kind:k,x:c.x,y:c.y,w:toU(w),h:toU(h),rot:0}; if(k==='veranda'){ vcfg(it); verandaSnap(it); } S.items.push(it); sel={type:'item',id:it.id}; });
+    if(k==='veranda') toast('Dra verandaen inntil husveggen. «Bæring og regler» gir forslag til bjelker, dragere og stolper.');
   }
   setMode('select');
 }
@@ -1017,7 +1276,7 @@ svg.addEventListener('pointermove', e => {
   else if(drag.kind==='wall'){ const dx=snapU(p.x-drag.p0.x), dy=snapU(p.y-drag.p0.y), o=drag.orig, w=drag.w;
     w.x1=o.x1+dx; w.y1=o.y1+dy; w.x2=o.x2+dx; w.y2=o.y2+dy; drag.lk[1].forEach(([ww,ee])=>setEnd(ww,ee,w.x1,w.y1)); drag.lk[2].forEach(([ww,ee])=>setEnd(ww,ee,w.x2,w.y2)); S.walls.forEach(clampOps); }
   else if(drag.kind==='op'){ const hit = nearestWall(p.x,p.y,60/view.k); if(hit){ const o=drag.o; o.wall=hit.w.id; o.c=snapU(hit.c); clampOp(o); } }
-  else if(drag.kind==='move'){ const o=drag.o; o.x = snapU(drag.ox+p.x-drag.p0.x); o.y = snapU(drag.oy+p.y-drag.p0.y);
+  else if(drag.kind==='move'){ const o=drag.o; o.x = snapU(drag.ox+p.x-drag.p0.x); o.y = snapU(drag.oy+p.y-drag.p0.y); if(o.kind==='veranda' && !e.altKey) verandaSnap(o);
     if(o.kind==='kum'||o.kind==='komfyr'){ // fest til benk den slippes på
       const b = S.items.find(i=>{ if(i.kind!=='benk') return false; const v=((i.rot%180)+180)%180===90; const bw=v?i.h:i.w, bh=v?i.w:i.h; return Math.abs(o.x-i.x)<=bw/2 && Math.abs(o.y-i.y)<=bh/2; });
       if(b){ const v=((b.rot%180)+180)%180===90; if(v){ o.x=b.x; } else { o.y=b.y; } o.rot = v?90:0; }
@@ -1043,7 +1302,7 @@ function setMode(m){ mode=m; $('mSel').setAttribute('aria-pressed',m==='select')
   $('hint').textContent = m==='roomstart' ? 'Trykk i hjørnet der rommet starter. Det fester seg til innvendige hjørner og veggflater. Esc avbryter.' : m==='dim' ? 'Dra mellom to punkter for å sette ut et mål. Velg det etterpå og dra det ut fra veggen.' : m==='measure' ? 'Dra mellom to punkter for å måle. Fester seg til veggflater og hjørner. Alt = fri vinkel.' : m==='wall' ? 'Dra for å tegne en vegg. Den låser seg vannrett/loddrett og fester seg til andre vegger.' : 'Dra for å flytte · tomt område panorerer · Delete sletter · Ctrl+Z angrer'; }
 
 // ---------- buttons & keys ----------
-$('bArea').onclick=openArea; $('areaClose').onclick=closeArea;
+$('bArea').onclick=openArea; $('areaClose').onclick=closeArea; $('bVer').onclick=()=>openVer(); $('verClose').onclick=closeVer;
 $('mSel').onclick=()=>setMode('select'); $('mRoom').onclick=roomButton; $('mWall').onclick=()=>setMode('wall'); $('mDim').onclick=()=>{ setMode('dim'); render(); }; $('mMeas').onclick=()=>{ setMode('measure'); render(); };
 $('bUndo').onclick=doUndo; $('bRedo').onclick=doRedo;
 $('bIn').onclick=()=>{ const r=svg.getBoundingClientRect(); zoomAt(r.left+r.width/2,r.top+r.height/2,1.3); };
@@ -1070,6 +1329,7 @@ document.addEventListener('keydown', e=>{
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ if(typing) return; e.preventDefault(); doRedo(); return; }
   if(typing) return;
   if((e.key==='Delete'||e.key==='Backspace') && sel){ e.preventDefault(); const b=$('pDel'); if(b) b.click(); }
+  else if(e.key==='Escape' && !$('verSheet').hidden){ closeVer(); }
   else if(e.key==='Escape' && !$('areaSheet').hidden){ closeArea(); }
   else if(e.key==='Escape'){ sel=null; setMode('select'); render(); }
   else if(e.key==='d'){ setMode('dim'); render(); }
@@ -1299,7 +1559,7 @@ function useMeasurement(c, fromHistory){
     if(opTgt==='pos'){ mutate(()=>setFromCorner(o,v)); opTgt='w'; render(); toast('Avstand fra hjørnet '+fmtMeas(c)+'. Neste måling er bredden.'); return; }
     if(opTgt==='h'){ mutate(()=>{ o.h=v; }); opTgt='pos'; render(); toast('Høyde '+fmtMeas(c)); return; }
     mutate(()=>setOpWidth(o,v)); opTgt='h'; render(); toast('Bredde '+fmtMeas(c)+'. Neste måling er høyden.'); return; }
-  else if(sel.type==='item') mutate(()=>{ o.w=v; });
+  else if(sel.type==='item'){ if(o.kind==='veranda'){ verandaMeasure(o,c); return; } mutate(()=>{ o.w=v; }); }
   else { toast('Tekst har ingen lengde'); return; }
   toast('Satt til '+fmtMeas(c));
 }
@@ -1330,7 +1590,7 @@ document.addEventListener('keydown', e=>{ if(e.key===' ' && glm.connected && !/I
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s' && api()){ e.preventDefault(); saveFile(); } });
 
 // ---------- boot ----------
-load(); document.querySelectorAll('.ub').forEach(b=>b.onclick=()=>setUnit(b.dataset.u)); document.querySelectorAll('.ub').forEach(b=>b.setAttribute('aria-pressed', b.dataset.u===unit)); buildPalette(); setMode('select'); updUndo();
+load(); document.querySelectorAll('.ub').forEach(b=>b.onclick=()=>setUnit(b.dataset.u)); document.querySelectorAll('.ub').forEach(b=>b.setAttribute('aria-pressed', b.dataset.u===unit)); buildPalette(); $('komList').innerHTML = SNOW.map(k=>'<option value="'+k.n.replace(/"/g,'&quot;')+'">').join(''); setMode('select'); updUndo();
 requestAnimationFrame(fit);
 })();
 </script>
