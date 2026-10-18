@@ -266,7 +266,7 @@ input.tgt{outline:2px solid var(--accent);outline-offset:1px}
     <section class="props">
       <h2>Data</h2>
       <div class="row"><label for="planNm">Navn</label><input id="planNm" type="text" placeholder="for eksempel 2. etg"></div>
-      <p class="muted" id="verTxt">Versjon web 04643f5ec6</p>
+      <p class="muted" id="verTxt">Versjon web 9453c30dfb</p>
       <p class="muted" id="dataTxt">Endringene lagres automatisk. Lagre som fil for å ta vare på en versjon eller flytte den.</p>
       <div class="btns">
         <button id="bSaveF" hidden>Lagre fil</button>
@@ -460,7 +460,7 @@ function drawSelection(){
     el('line',{x1:o.x1,y1:o.y1,x2:o.x2,y2:o.y2,'stroke-width':o.t+4,class:'selwall'},world);
     const g = geom(o), mx=(o.x1+o.x2)/2, my=(o.y1+o.y2)/2, d = o.t/2+12/view.k;
     dimText(mx+g.nx*d, my+g.ny*d, ulab(g.L), g);
-    [[o.x1,o.y1,1],[o.x2,o.y2,2]].forEach(([x,y,e])=>el('circle',{cx:x,cy:y,r:7/view.k,class:'handle','stroke-width':2/view.k,'data-t':'end','data-id':o.id,'data-e':e},world));
+    const lk = linked(o); [[o.x1,o.y1,1],[o.x2,o.y2,2]].forEach(([x,y,e])=>el('circle',{cx:x,cy:y,r:7/view.k,class:'handle','stroke-width':2/view.k,fill:lk[e].length?'var(--sel)':'var(--sheet)','data-t':'end','data-id':o.id,'data-e':e},world));
   } else if(sel.type==='op'){
     const P = opPoints(o); if(!P) return; const {w,g,px,py} = P; const h=o.w/2;
     el('line',{x1:px-g.ux*h,y1:py-g.uy*h,x2:px+g.ux*h,y2:py+g.uy*h,'stroke-width':w.t+6,class:'selwall'},world);
@@ -531,8 +531,8 @@ function renderProps(){
     h(`<p class="sel-title">Vegg</p>
       <div class="row"><label for="pLen">Lengde (${unit})</label><input id="pLen" type="number" step="${ustep()}" value="${inVal(g.L)}"></div>
       <div class="row"><label for="pT">Tykkelse (${unit})</label><input id="pT" type="number" step="${ustep()}" value="${inVal(o.t)}"></div>
-      <p class="muted">Dra endepunktene for å endre veggen. Tilkoblede vegger følger med.</p>
-      <div class="btns"><button id="pDel" class="danger">Slett vegg</button><button id="pSplit">Del i to</button><button id="pDimW">Sett ut mål</button></div>
+      <p class="muted">${(()=>{ const lk = linked(o), f = n => n ? 'låst til ' + n + ' vegg' + (n>1?'er':'') : 'fri'; return 'Start er ' + f(lk[1].length) + ', slutt er ' + f(lk[2].length) + '. Låste hjørner (fylte punkter) følger med når du flytter.'; })()}</p>
+      <div class="btns"><button id="pJoin">Lås hjørne</button><button id="pSplit">Del i to</button><button id="pDimW">Sett ut mål</button><button id="pDel" class="danger">Slett vegg</button></div>
       ${isScan()?`<div class="calib"><p class="muted">Målestokken er anslått fra skanningen. Kjenner du det riktige målet på denne veggen, skriv det inn så justeres alle mål.</p>
       <div class="row"><label for="pCal">Riktig mål (${unit})</label><input id="pCal" type="number" step="${ustep()}" placeholder="${inVal(g.L)}"></div>
       <div class="btns"><button id="pCalGo">Bruk som målestokk</button></div></div>`:''}`);
@@ -541,6 +541,7 @@ function renderProps(){
     $('pDel').onclick = () => mutate(()=>{ S.walls = S.walls.filter(w=>w!==o); S.openings = S.openings.filter(x=>x.wall!==o.id); sel=null; });
     $('pSplit').onclick = () => mutate(()=>{ const mx=(o.x1+o.x2)/2,my=(o.y1+o.y2)/2; const nw = {id:nid('w'),x1:mx,y1:my,x2:o.x2,y2:o.y2,t:o.t}; const half=g.L/2;
       S.openings.forEach(op=>{ if(op.wall===o.id && op.c>half){ op.wall=nw.id; op.c-=half; } }); o.x2=mx; o.y2=my; S.walls.push(nw); clampOps(o); clampOps(nw); });
+    $('pJoin').onclick = () => { setMode('join'); render(); };
     $('pDimW').onclick = () => mutate(()=>{ const cx=avgX(), cy=avgY(); const mx=(o.x1+o.x2)/2, my=(o.y1+o.y2)/2; const sgn = ((mx-cx)*g.nx+(my-cy)*g.ny)>=0?1:-1;
       const d={id:nid('d'),x1:o.x1,y1:o.y1,x2:o.x2,y2:o.y2,off:sgn*(o.t/2+toU(50))}; S.dims.push(d); sel={type:'dim',id:d.id}; });
     if($('pCalGo')) $('pCalGo').onclick = () => { const v=+$('pCal').value; if(!(v>0)) { toast('Skriv inn riktig mål i '+unit); return; } mutate(()=>{ S.scale = (v/UF[unit]) / g.L; }); toast('Målestokk oppdatert'); };
@@ -602,6 +603,25 @@ function setWallLen(o,v){ const g=geom(o); const ends=linked(o); o.x2=o.x1+g.ux*
 function clampOp(o){ const w=find(S.walls,o.wall); if(!w) return; const L=geom(w).L; o.w=Math.min(o.w, L); o.c=Math.min(Math.max(o.c,o.w/2), L-o.w/2); }
 function clampOps(w){ S.openings.forEach(o=>{ if(o.wall===w.id) clampOp(o); }); }
 function setEnd(w,e,x,y){ if(e===1){ w.x1=x; w.y1=y; } else { w.x2=x; w.y2=y; } }
+function joinSnap(x, y, w){ // mål for «Lås hjørne»: ende på en annen vegg, ellers nærmeste punkt på en annen veggs senterlinje
+  const tol = 14/view.k; let best = null;
+  S.walls.forEach(o => { if(o===w) return; [[o.x1,o.y1],[o.x2,o.y2]].forEach(([px,py]) => { const d = Math.hypot(px-x, py-y); if(d < tol && (!best || d < best.d)) best = {x:px, y:py, d}; }); });
+  if(best) return {x:best.x, y:best.y, end:true};
+  let hit = null; S.walls.forEach(o => { if(o===w) return; const g = geom(o), c = Math.max(0, Math.min(g.L, (x-o.x1)*g.ux + (y-o.y1)*g.uy)), d = Math.hypot(x-(o.x1+g.ux*c), y-(o.y1+g.uy*c));
+    if(d < 30/view.k + o.t && (!hit || d < hit.d)) hit = {w:o, c, d, g}; });
+  if(!hit) return null; return {x:hit.w.x1 + hit.g.ux*hit.c, y:hit.w.y1 + hit.g.uy*hit.c, end:false, w:hit.w, c:hit.c};
+}
+function joinAt(p){
+  const w = sel && sel.type==='wall' ? find(S.walls, sel.id) : null; if(!w){ setMode('select'); render(); return; }
+  const tgt = joinSnap(p.x, p.y, w); if(!tgt){ toast('Trykk på en annen vegg'); return; }
+  const e = Math.hypot(w.x1-tgt.x, w.y1-tgt.y) <= Math.hypot(w.x2-tgt.x, w.y2-tgt.y) ? 1 : 2;
+  mutate(() => {
+    if(!tgt.end){ const o = tgt.w, g = geom(o), c = tgt.c; // del veggen der hjørnet treffer, så endene ligger oppå hverandre
+      if(c > toU(5) && c < g.L - toU(5)){ const nw = {id:nid('w'), x1:tgt.x, y1:tgt.y, x2:o.x2, y2:o.y2, t:o.t};
+        S.openings.forEach(op => { if(op.wall===o.id && op.c > c){ op.wall = nw.id; op.c -= c; } }); o.x2 = tgt.x; o.y2 = tgt.y; S.walls.push(nw); clampOps(o); clampOps(nw); } }
+    const others = linked(w)[e]; setEnd(w, e, tgt.x, tgt.y); others.forEach(([o,ee]) => setEnd(o, ee, tgt.x, tgt.y)); S.walls.forEach(clampOps); });
+  setMode('select'); render(); toast('Hjørnet er låst sammen. Veggene følger hverandre når du flytter dem.');
+}
 function linked(w){ // other wall ends coincident with this wall's ends
   const r = {1:[],2:[]}; const tol = 1.5;
   S.walls.forEach(o=>{ if(o===w) return; [[1,o.x1,o.y1],[2,o.x2,o.y2]].forEach(([e,x,y])=>{
@@ -785,7 +805,7 @@ function drawDraft(){
     el('circle', {cx:e.x, cy:e.y, r:3.5*k, fill:'var(--sel)'}, g); }
 }
 function drawHover(){
-  if((mode!=='roomstart' && mode!=='anchor') || !hover) return; const k = 1/view.k, g = el('g', {'pointer-events':'none'}, world);
+  if((mode!=='roomstart' && mode!=='anchor' && mode!=='join') || !hover) return; const k = 1/view.k, g = el('g', {'pointer-events':'none'}, world);
   el('circle', {cx:hover.x, cy:hover.y, r:6*k, class:'draftst', 'stroke-width':2*k}, g);
   if(hover.corner && mode==='roomstart'){ const h = hover.dir*Math.PI/180, L = 40*k, tx = hover.x + Math.cos(h)*L, ty = hover.y + Math.sin(h)*L;
     el('line', {x1:hover.x, y1:hover.y, x2:tx, y2:ty, class:'draftf draftact', 'stroke-width':2*k}, g); arrowHead(g, tx, ty, h, k); }
@@ -1508,6 +1528,7 @@ svg.addEventListener('pointerdown', e => {
   const tgt = e.target.closest('[data-t]');
   if(mode==='roomstart' && e.button!==1){ startRoom(roomSnap(p.x,p.y)); return; }
   if(mode==='anchor' && e.button!==1){ anchorAt(anchorSnap(p.x,p.y)); return; }
+  if(mode==='join' && e.button!==1){ joinAt(p); return; }
   if(mode==='dim' && e.button!==1){ const s=measureSnap(p.x,p.y); const d={id:nid('d'),x1:s.x,y1:s.y,x2:s.x,y2:s.y,off:0}; S.dims.push(d); sel={type:'dim',id:d.id}; drag={kind:'newdim',d,prev}; render(); return; }
   if(mode==='measure' && e.button!==1){ const s=measureSnap(p.x,p.y); measure={x1:s.x,y1:s.y,x2:s.x,y2:s.y}; drag={kind:'measure'}; render(); return; }
   if(mode==='wall' && e.button!==1){
@@ -1565,11 +1586,11 @@ function endPointer(e){
 }
 svg.addEventListener('pointerup', endPointer); svg.addEventListener('pointercancel', endPointer);
 svg.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.clientX,e.clientY, Math.exp(-e.deltaY*0.0015)); }, {passive:false});
-function updateHint(e){ if((mode!=='roomstart' && mode!=='anchor') || !e) return; const p=toWorld(e.clientX,e.clientY); hover=mode==='anchor' ? anchorSnap(p.x,p.y) : roomSnap(p.x,p.y); render(); }
+function updateHint(e){ if((mode!=='roomstart' && mode!=='anchor' && mode!=='join') || !e) return; const p=toWorld(e.clientX,e.clientY); hover=mode==='anchor' ? anchorSnap(p.x,p.y) : mode==='join' ? joinSnap(p.x,p.y, sel && sel.type==='wall' ? find(S.walls, sel.id) : null) : roomSnap(p.x,p.y); render(); }
 
-function setMode(m){ mode=m; $('mSel').setAttribute('aria-pressed',m==='select'); $('mWall').setAttribute('aria-pressed',m==='wall'); $('mMeas').setAttribute('aria-pressed',m==='measure'); $('mDim').setAttribute('aria-pressed',m==='dim'); $('mRoom').setAttribute('aria-pressed',m==='roomstart'||!!draft); if(m!=='roomstart' && m!=='anchor') hover=null; svg.classList.toggle('draw',m!=='select');
+function setMode(m){ mode=m; $('mSel').setAttribute('aria-pressed',m==='select'); $('mWall').setAttribute('aria-pressed',m==='wall'); $('mMeas').setAttribute('aria-pressed',m==='measure'); $('mDim').setAttribute('aria-pressed',m==='dim'); $('mRoom').setAttribute('aria-pressed',m==='roomstart'||!!draft); if(m!=='roomstart' && m!=='anchor' && m!=='join') hover=null; svg.classList.toggle('draw',m!=='select');
   if(m!=='measure') measure=null;
-  $('hint').textContent = m==='anchor' ? 'Trykk på veggen der hjørnet skal stå. Det fester seg til hjørner og veggflater. Esc avbryter.' : m==='roomstart' ? 'Trykk i hjørnet der rommet starter. Det fester seg til innvendige hjørner og veggflater. Esc avbryter.' : m==='dim' ? 'Dra mellom to punkter for å sette ut et mål. Velg det etterpå og dra det ut fra veggen.' : m==='measure' ? 'Dra mellom to punkter for å måle. Fester seg til veggflater og hjørner. Alt = fri vinkel.' : m==='wall' ? 'Dra for å tegne en vegg. Den låser seg vannrett/loddrett og fester seg til andre vegger.' : 'Dra for å flytte · tomt område panorerer · Delete sletter · Ctrl+Z angrer'; }
+  $('hint').textContent = m==='join' ? 'Trykk på veggen som hjørnet skal låses til. Treffer du en ende, låses endene sammen. Treffer du midt på, deles veggen der. Esc avbryter.' : m==='anchor' ? 'Trykk på veggen der hjørnet skal stå. Det fester seg til hjørner og veggflater. Esc avbryter.' : m==='roomstart' ? 'Trykk i hjørnet der rommet starter. Det fester seg til innvendige hjørner og veggflater. Esc avbryter.' : m==='dim' ? 'Dra mellom to punkter for å sette ut et mål. Velg det etterpå og dra det ut fra veggen.' : m==='measure' ? 'Dra mellom to punkter for å måle. Fester seg til veggflater og hjørner. Alt = fri vinkel.' : m==='wall' ? 'Dra for å tegne en vegg. Den låser seg vannrett/loddrett og fester seg til andre vegger.' : 'Dra for å flytte · tomt område panorerer · Delete sletter · Ctrl+Z angrer'; }
 
 // ---------- buttons & keys ----------
 $('bArea').onclick=openArea; $('areaClose').onclick=closeArea; $('bVer').onclick=()=>openVer(); $('verClose').onclick=closeVer; $('printClose').onclick=closePrint; $('printGo').onclick=()=>window.print();
